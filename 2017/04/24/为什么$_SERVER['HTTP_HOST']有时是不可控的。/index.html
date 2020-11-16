@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>为什么$_SERVER['HTTP_HOST']有时是不可控的</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">为什么$_SERVER['HTTP_HOST']有时是不可控的</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2017-04-24</p><p class="meta-item meta-category"></p></div><div class="article-content"><p>最近在看一套程序的时候, 看到一段代码。<br>如果SERVRT[&apos;HTTP_HOST&apos;]可以控制的话, 可以造成一个漏洞,<br>本地是测试成功了, 但是在测试demo的时候就失败掉了。<br>所以这里来谈谈SERVER[&apos;HTTP_HOST&apos;]为什么有时会不可控。</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>为什么$_SERVER[&#39;HTTP_HOST&#39;]有时是不可控的 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="为什么$_SERVER[&#39;HTTP_HOST&#39;]有时是不可控的"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>为什么$_SERVER[&#39;HTTP_HOST&#39;]有时是不可控的</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2017/04/24/为什么$_SERVER['HTTP_HOST']有时是不可控的。/" rel="bookmark">
+        <time class="entry-date published" datetime="2017-04-24T01:35:11.000Z">
+          2017-04-24
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>最近在看一套程序的时候, 看到一段代码。<br>如果SERVRT[&apos;HTTP_HOST&apos;]可以控制的话, 可以造成一个漏洞,<br>本地是测试成功了, 但是在测试demo的时候就失败掉了。<br>所以这里来谈谈SERVER[&apos;HTTP_HOST&apos;]为什么有时会不可控。</p>
 <hr>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">    GET &#x2F;123.php HTTP&#x2F;1.1</span><br><span class="line">    Host: localhost</span><br><span class="line">    User-Agent: Mozilla&#x2F;5.0 (Macintosh; Intel Mac OS X 10.12; rv:52.0) Gecko&#x2F;20100101 Firefox&#x2F;52.0</span><br><span class="line">Accept: text&#x2F;html,application&#x2F;xhtml+xml,application&#x2F;xml;q&#x3D;0.9,*&#x2F;*;q&#x3D;0.8</span><br><span class="line">    Accept-Language: zh,en-US;q&#x3D;0.7,en;q&#x3D;0.3</span><br><span class="line">    Accept-Encoding: gzip, deflate</span><br></pre></td></tr></table></figure>
 
@@ -49,8 +127,54 @@ var_dump($_SERVER[&#39;HTTP_HOST&#39;]);</code></pre>
 <p>对请求行和请求头强制实施与RFC7230相对应的HTTP请求语法，以防止恶意客户端或下游代理对响应分裂和缓存污染</p>
 </blockquote>
 <p><img src="http://onw16foqc.bkt.clouddn.com/14929975153275.jpg"></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

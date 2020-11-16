@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>当表名可控的注入遇到了Describe时的几种情况。</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">当表名可控的注入遇到了Describe时的几种情况。</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2017-04-16</p><p class="meta-item meta-category"></p></div><div class="article-content"><h2 id="SHOW-COLUMNS"><a href="#SHOW-COLUMNS" class="headerlink" title="SHOW COLUMNS"></a>SHOW COLUMNS</h2><p>之前小嘎嘎遇到了个注入是表前缀不可控,表名可控的注入,<br>但是在表名进入的select语句执行之前, 执行了一次SHOW COLUMNS FROM $TABLE。<br>如果SHOW COLUMNS语句执行出错了的话,<br>就不会再执行后面的SELECT语句。</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>当表名可控的注入遇到了Describe时的几种情况。 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="当表名可控的注入遇到了Describe时的几种情况。"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>当表名可控的注入遇到了Describe时的几种情况。</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2017/04/16/当表名可控的注入遇到了Describe时的几种情况。/" rel="bookmark">
+        <time class="entry-date published" datetime="2017-04-16T13:52:13.000Z">
+          2017-04-16
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="SHOW-COLUMNS"><a href="#SHOW-COLUMNS" class="headerlink" title="SHOW COLUMNS"></a>SHOW COLUMNS</h2><p>之前小嘎嘎遇到了个注入是表前缀不可控,表名可控的注入,<br>但是在表名进入的select语句执行之前, 执行了一次SHOW COLUMNS FROM $TABLE。<br>如果SHOW COLUMNS语句执行出错了的话,<br>就不会再执行后面的SELECT语句。</p>
 <p>大概代码如:</p>
 <pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
 mysql_query(&quot;use b2cshop&quot;);
@@ -88,8 +166,54 @@ echo mysql_error();</code></pre>
     var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
     echo mysql_error();</code></pre>
 <p><img src="http://onw16foqc.bkt.clouddn.com/14923497093942.jpg"></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

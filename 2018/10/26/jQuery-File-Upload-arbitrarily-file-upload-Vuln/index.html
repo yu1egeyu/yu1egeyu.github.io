@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>jQuery-File-Upload-arbitrarily-file-upload-Vuln</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">jQuery-File-Upload-arbitrarily-file-upload-Vuln</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2018-10-26</p><p class="meta-item meta-category"></p></div><div class="article-content"><p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jq_1.jpg" alt="-w914"></p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>jQuery-File-Upload-arbitrarily-file-upload-Vuln | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="jQuery-File-Upload-arbitrarily-file-upload-Vuln"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>jQuery-File-Upload-arbitrarily-file-upload-Vuln</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/10/26/jQuery-File-Upload-arbitrarily-file-upload-Vuln/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-10-26T08:48:39.000Z">
+          2018-10-26
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jq_1.jpg" alt="-w914"></p>
 <p>在这看到的, 看到这个的时候有点疑惑这玩意不应该就是个前端的上传么, 怎么还会造成任意文件上传漏洞。  就去下了个源码看了下。</p>
 <h2 id="漏洞复现"><a href="#漏洞复现" class="headerlink" title="漏洞复现"></a>漏洞复现</h2><p><a target="_blank" rel="noopener" href="https://github.com/blueimp/jQuery-File-Upload/releases/tag/v9.22.0">https://github.com/blueimp/jQuery-File-Upload/releases/tag/v9.22.0</a></p>
 <p>下载了代码后, 发现原来也带了后端处理上传的脚本。在server目录下。</p>
@@ -43,8 +121,54 @@
 <p>把传递进来的数组和自身的配置变量数组用加号进行合并,<br>使用加号合并时 出现key冲突时 前面的数组对应的value会覆盖掉后面的。<br>所以这时<br><code>$this-&gt;options[&#39;accept_file_types&#39;]</code>为 <code>&#39;/\.(gif|jpe?g|png)$/i&#39;    </code><br>在上传之前的validate方法中有通过获取accept_file_types来正则验证上传的文件名, 所以修复后就只能上传图片文件了。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jq_4.jpg" alt="-w965"><br>修复后再上传脚本文件就失败了。</p>
 <h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p>1:  <a target="_blank" rel="noopener" href="https://httpd.apache.org/docs/current/mod/core.html#allowoverride">https://httpd.apache.org/docs/current/mod/core.html#allowoverride</a></p>
 <p>2:  <a target="_blank" rel="noopener" href="https://github.com/blueimp/jQuery-File-Upload/blob/master/VULNERABILITIES.md">https://github.com/blueimp/jQuery-File-Upload/blob/master/VULNERABILITIES.md</a></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/web/">web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

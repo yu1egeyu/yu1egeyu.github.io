@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>ORACLE 无SELECT注入</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">ORACLE 无SELECT注入</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2019-11-24</p><p class="meta-item meta-category"></p></div><div class="article-content"><p>在实际测试中, 经常遇到一出现SELECT就被拦截的场景, 对于无法多行查询的注入来说,一般遇到这种场景就告别出数据了(能出个user等信息)。闲着读ORACLE文档的时候, 发现ORACLE支持使用Xpath进行查询, 通过使用Xpath可以实现无SELECT查询数据。</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>ORACLE 无SELECT注入 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="WEB">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="ORACLE 无SELECT注入"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>ORACLE 无SELECT注入</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2019/11/24/ORACLE-无SELECT注入/" rel="bookmark">
+        <time class="entry-date published" datetime="2019-11-24T10:43:37.000Z">
+          2019-11-24
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>在实际测试中, 经常遇到一出现SELECT就被拦截的场景, 对于无法多行查询的注入来说,一般遇到这种场景就告别出数据了(能出个user等信息)。闲着读ORACLE文档的时候, 发现ORACLE支持使用Xpath进行查询, 通过使用Xpath可以实现无SELECT查询数据。</p>
 <h2 id="测试环境"><a href="#测试环境" class="headerlink" title="测试环境"></a>测试环境</h2><p><a target="_blank" rel="noopener" href="https://docs.oracle.com/cd/B10501_01/appdev.920/a96616/arxml35.htm#1004694">https://docs.oracle.com/cd/B10501_01/appdev.920/a96616/arxml35.htm#1004694</a></p>
 <blockquote>
 <p>Description of DBUriType<br>The DBUriType is a subtype of the UriType that provides support for of DBUri-refs. A DBUri-ref is an intra-database URL that can be used to reference any row or row-column data in the database. The URL is specified as an XPath expression over a XML visualization of the database. The schemas become elements which contain tables and views. These tables and view further contain the rows and columns inside them.</p>
@@ -23,8 +101,54 @@
 <p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_6.jpg" alt="-w1400"><br>外带出了表中的所有数据, 在表中数据数量过于庞大时发送GET请求可能会出现问题。可以使用上面的extract外带一行数据等方法。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_7.jpg" alt="-w902"></p>
 <h3 id="SSRF-CRLF"><a href="#SSRF-CRLF" class="headerlink" title="SSRF + CRLF"></a>SSRF + CRLF</h3><p>使用httpuritype发送HTTP请求存在CRLF问题, 在存在注入无法RCE时可以尝试打内网的redis等。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_8.jpg" alt="-w1231"></p>
 <h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p><a target="_blank" rel="noopener" href="https://docs.oracle.com/cd/B10501_01/appdev.920/a96616/arxml35.htm#1004694">https://docs.oracle.com/cd/B10501_01/appdev.920/a96616/arxml35.htm#1004694</a><br><a target="_blank" rel="noopener" href="https://docs.oracle.com/cd/B12037_01/appdev.101/b10790/xdb15dbu.htm#i1032143">https://docs.oracle.com/cd/B12037_01/appdev.101/b10790/xdb15dbu.htm#i1032143</a></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/WEB/">WEB</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

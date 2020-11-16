@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>Metinfo6 Arbitrary File Upload Via Iconv Truncate</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">Metinfo6 Arbitrary File Upload Via Iconv Truncate</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2019-06-18</p><p class="meta-item meta-category"></p></div><div class="article-content"><h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>放了好多年的一个漏洞, 不过也没看到有人发出来过,都快放忘了,最近朋友hw遇到了一个Metinfo,帮忙用这个洞打了一下还成功了。自己又去官网下载了最新的Metinfo 62版本看了下,最新版加了一些过滤不过还是能够绕过。</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Metinfo6 Arbitrary File Upload Via Iconv Truncate | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Metinfo6 Arbitrary File Upload Via Iconv Truncate"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Metinfo6 Arbitrary File Upload Via Iconv Truncate</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2019/06/18/Metinfo6-Arbitrary-File-Upload-Via-Iconv-Truncate/" rel="bookmark">
+        <time class="entry-date published" datetime="2019-06-18T15:01:39.000Z">
+          2019-06-18
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>放了好多年的一个漏洞, 不过也没看到有人发出来过,都快放忘了,最近朋友hw遇到了一个Metinfo,帮忙用这个洞打了一下还成功了。自己又去官网下载了最新的Metinfo 62版本看了下,最新版加了一些过滤不过还是能够绕过。</p>
 <p>漏洞成功利用场景</p>
 <blockquote>
 <p>最新版本无需登录, Windows + php&lt;5.4</p>
@@ -52,8 +130,54 @@
 <figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&lt;?php</span></span><br><span class="line"><span class="comment"># MetInfo Enterprise Content Management System </span></span><br><span class="line"><span class="comment"># Copyright (C) MetInfo Co.,Ltd (http://www.metinfo.cn). All rights reserved. </span></span><br><span class="line"></span><br><span class="line">define(<span class="string">&#x27;IN_ADMIN&#x27;</span>, <span class="literal">true</span>);</span><br><span class="line"></span><br><span class="line">$M_MODULE=<span class="string">&#x27;admin&#x27;</span>;</span><br><span class="line"><span class="keyword">if</span>(@$_GET[<span class="string">&#x27;m&#x27;</span>])$M_MODULE=$_GET[<span class="string">&#x27;m&#x27;</span>];</span><br><span class="line"><span class="keyword">if</span>(@!$_GET[<span class="string">&#x27;n&#x27;</span>])$_GET[<span class="string">&#x27;n&#x27;</span>]=<span class="string">&quot;index&quot;</span>;</span><br><span class="line"><span class="keyword">if</span>(@!$_GET[<span class="string">&#x27;c&#x27;</span>])$_GET[<span class="string">&#x27;c&#x27;</span>]=<span class="string">&quot;index&quot;</span>;</span><br><span class="line"><span class="keyword">if</span>(@!$_GET[<span class="string">&#x27;a&#x27;</span>])$_GET[<span class="string">&#x27;a&#x27;</span>]=<span class="string">&quot;doindex&quot;</span>;</span><br><span class="line">@define(<span class="string">&#x27;M_NAME&#x27;</span>, $_GET[<span class="string">&#x27;n&#x27;</span>]);</span><br><span class="line">@define(<span class="string">&#x27;M_MODULE&#x27;</span>, $M_MODULE);</span><br><span class="line">@define(<span class="string">&#x27;M_CLASS&#x27;</span>, $_GET[<span class="string">&#x27;c&#x27;</span>]);</span><br><span class="line">@define(<span class="string">&#x27;M_ACTION&#x27;</span>, $_GET[<span class="string">&#x27;a&#x27;</span>]);</span><br><span class="line"><span class="keyword">require_once</span> <span class="string">&#x27;../app/system/entrance.php&#x27;</span>;</span><br><span class="line"><span class="comment"># This program is an open source system, commercial use, please consciously to purchase commercial license.</span></span><br><span class="line"><span class="comment"># Copyright (C) MetInfo Co., Ltd. (http://www.metinfo.cn). All rights reserved.</span></span><br><span class="line"><span class="meta">?&gt;</span></span><br></pre></td></tr></table></figure>
 <p>该文件中,设置了IN_ADMIN常量并且可以自己控制加载的module、class等且无权限验证,所以使用这个文件来加载uploadify类实现上传就能够绕过sqlinsert使用..\实现目录穿越。</p>
 <h2 id="利用"><a href="#利用" class="headerlink" title="利用"></a>利用</h2><p>打个码, 需要的自己调一下代码吧。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/metu_7.jpg" alt="-w1292"></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

@@ -1,7 +1,85 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><title>Postgresql Superuser SQL注入 RCE之旅</title>
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/main.css">
-<link rel="shortcut icon" href="/img/favicon.png"><meta name="generator" content="Hexo 5.2.0"></head><body><header class="base-menu"><div class="menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav></div></header><header class="base-mobile-menu"><div class="mobile-menu-wrapper"><div class="menu-layout-bg"></div><nav class="menu-content"><ul class="menu-list"><li class="menu-item"><a href="/" class="menu-link">雨了个雨's blog</a></li><li class="menu-item"><a href="/blog/archives" class="menu-link">Archives</a></li><li class="menu-item"><a href="/about" class="menu-link">About</a></li></ul></nav><div id="mobile-menu-toggle" class="toggle-menu"><span class="menu-bar"></span><span class="menu-bar"> </span><span class="menu-bar"></span></div></div></header><div class="base-content"><div class="base-content-main"><article class="article-main"><h1 class="article-title">Postgresql Superuser SQL注入 RCE之旅</h1><div class="article-meta"><p class="meta-item meta-time"><span class="meta-item-title">发表于: </span>2020-11-16</p><p class="meta-item meta-category"></p></div><div class="article-content"><p>在测试时，遇到了一个Node.js + Postgresql的ORDER BY注入。</p>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Postgresql Superuser SQL注入 RCE之旅 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Postgresql Superuser SQL注入 RCE之旅"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Postgresql Superuser SQL注入 RCE之旅</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2020/11/16/Postgresql-Superuser-SQL注入-RCE之旅/" rel="bookmark">
+        <time class="entry-date published" datetime="2020-11-16T05:45:59.000Z">
+          2020-11-16
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>在测试时，遇到了一个Node.js + Postgresql的ORDER BY注入。</p>
 <p><code>sorter=cast((select+user)as+integer)</code><br>返回<br>invalid input syntax for integer: &quot;postgres&quot;<br>当前用户为postgres,</p>
 <p><code>sorter=cast((select+version())as+integer)</code><br>返回<br>PostgreSQL 10.1 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 4.4.6 20110731 (Red Hat 4.4.6-4)</p>
 <p>版本为PostgreSQL 10， 很明显能够发现当前用户是superuser，superuser感觉rce问题不大。<br>测试能否多语句，如果可以多语句就可以通过COPY直接实现RCE</p>
@@ -90,8 +168,47 @@
 <p>再去覆盖掉原始配置文件，在覆盖掉原配置文件后，执行sorter=(select/**/pg_reload_conf())就自动加载了so实现了命令执行。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2020/11/16/16036981766016.jpg"></p>
 <p>拿下数据库服务器后，发现数据库配置了pg_hba，不需要密码即可登录。尝试去打web服务器，node-postgres老版本存在代码执行洞，如果能够控制SQL返回的列名即可实现代码执行，这里因为控制了数据库服务器如果给一个表添加一个类似”\‘+console.log(process.env)]=null;//“字段  alter table xxxxx add “&#39;+console.log(process.env)]=null;//“ varchar(20);  ,如果web有对该表使用select *操作，即可实现rce.<br>不过最后没成功，应该还是目标node-postgres版本比较高:(</p>
 <h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p><a target="_blank" rel="noopener" href="https://pulsesecurity.co.nz/articles/postgres-sqli">https://pulsesecurity.co.nz/articles/postgres-sqli</a><br><a target="_blank" rel="noopener" href="https://www.leavesongs.com/PENETRATION/node-postgres-code-execution-vulnerability.html">https://www.leavesongs.com/PENETRATION/node-postgres-code-execution-vulnerability.html</a></p>
-</div></article><div id="base-discus"></div></div></div><footer class="base-footer"><div class="footer-wrapper"><span>雨了个雨 Using </span><a target="_blank" rel="noopener" href="https://github.com/chuguixin/Simple"><span>Simple</span></a><span> Presents For You.</span></div></footer><div class="dom-ready">
-<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 
-<script src="/js/base.js"></script>
-</div></body></html>
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2020 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>
