@@ -1,0 +1,174 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>KOA 文件上传包解析特性 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="KOA 文件上传包解析特性"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/friends">Friends</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>KOA 文件上传包解析特性</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2021/01/05/KOA-文件上传包解析特性/" rel="bookmark">
+        <time class="entry-date published" datetime="2021-01-05T11:46:17.000Z">
+          2021-01-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="场景"><a href="#场景" class="headerlink" title="场景"></a>场景</h2><p>在一次测试中，遇到了一个nodejs的命令注入漏洞，但是存在一些过滤。<br>web所使用的框架为koa, 使用koa-body处理文件上传请求，系统为Linux, 简化后的代码如下所示。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> Koa = <span class="built_in">require</span>(<span class="string">&#x27;koa&#x27;</span>)</span><br><span class="line"><span class="keyword">const</span> app = <span class="keyword">new</span> Koa()</span><br><span class="line"><span class="keyword">const</span> koaBody = <span class="built_in">require</span>(<span class="string">&#x27;koa-body&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> path = <span class="built_in">require</span>(<span class="string">&#x27;path&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> fs = <span class="built_in">require</span>(<span class="string">&#x27;fs&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> child_process = <span class="built_in">require</span>(<span class="string">&#x27;child_process&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">checkname</span>(<span class="params">value</span>)</span>&#123;</span><br><span class="line">    <span class="keyword">const</span> re = <span class="keyword">new</span> <span class="built_in">RegExp</span>(<span class="regexp">/([&amp;;|$`&#x27;&quot;/\\])|([.]&#123;2&#125;)/</span>);</span><br><span class="line">    <span class="keyword">return</span> !re.test(value);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">app.use(                </span><br><span class="line">  koaBody(&#123;</span><br><span class="line">    multipart: <span class="literal">true</span>,</span><br><span class="line">    formidable: &#123;</span><br><span class="line">      hash: <span class="string">&#x27;md5&#x27;</span>,</span><br><span class="line">      maxFileSize: <span class="number">10</span> * <span class="number">1024</span> * <span class="number">1024</span> * <span class="number">1024</span>,</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="function"><span class="title">onError</span>(<span class="params">error, ctx</span>)</span> &#123;</span><br><span class="line"></span><br><span class="line">    &#125;,</span><br><span class="line">  &#125;));</span><br><span class="line"></span><br><span class="line">app.use( <span class="keyword">async</span> ( ctx ) =&gt; &#123;</span><br><span class="line">  <span class="keyword">const</span> file = ctx.request.files.file;</span><br><span class="line">  <span class="function"><span class="title">if</span>(<span class="params">!checkname(file.name)</span>)</span>&#123;</span><br><span class="line">    <span class="keyword">return</span> ctx.body=<span class="string">&quot;invalid filename&quot;</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">const</span> filePath = path.join(<span class="string">&quot;/tmp/web/public&quot;</span>, file.name);</span><br><span class="line">  <span class="keyword">const</span> rf = fs.readFileSync(file.path);</span><br><span class="line">  fs.writeFileSync(filePath, rf);</span><br><span class="line"></span><br><span class="line">  child_process.exec(<span class="string">`psql  -U tmp -h 127.0.0.1 -p 25432 -d test -f <span class="subst">$&#123;file.name&#125;</span>`</span>);</span><br><span class="line"></span><br><span class="line">  ctx.body = <span class="string">`psql  -U tmp -h 127.0.0.1 -p 25432 -d test -f <span class="subst">$&#123;file.name&#125;</span>`</span>;</span><br><span class="line">&#125;)</span><br><span class="line">app.listen(<span class="number">3000</span>)</span><br></pre></td></tr></table></figure>
+<p>功能为用户上传sql文件，后端将sql文件保存在本地中，然后psql命令导入该sql文件。导入的sql路径使用绝对路径，目录不可控但是文件名并没有做随机化，使用的是用户上传的文件名加了一层checkname过滤。 </p>
+<h2 id="0x01-解决换行"><a href="#0x01-解决换行" class="headerlink" title="0x01 解决换行"></a>0x01 解决换行</h2><p>因为过滤掉了 &amp; | ; 等字符，所以首先看看能不能通过参数注入实现RCE。看了下psql的help, 发现在psql command中可以通过\! command 实现命令执行.<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/01/05/16098338365890.jpg"></p>
+<p>不过在实际的koa环境中，上传文件时文件名会截取最后一个”\“后面的字符。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> file = ctx.request.files.file;</span><br><span class="line"><span class="keyword">return</span> ctx.body=<span class="string">&quot;filename:&quot;</span> + file.name;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/01/05/16098356570802.jpg"></p>
+<p>因为用不了”\“字符，暂时放弃psql command RCE这条路子，同时因为是低权限账户，也不能通过执行任意SQL语句实现RCE。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/01/05/16098363668258.jpg"><br>虽然过滤了&amp;|;等字符，但是实际child_process.exec 也是调用的/bin/sh -c, 众所周知sh -c 可以通过换行实现注入新命令, 同时checkname方法中没有过滤换行。<br>观察功能代码可知，需要在文件保存成功后，才会执行命令，所以上传的文件名需要合法。 在linux下，对文件名的限制不像windows那么严格，除了”/“之外，所有的字符都合法，所以换行符也可以设置为文件名。</p>
+<p>综上所示，只要能上传一个带有换行的文件名就可以成功RCE。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/01/05/16098367792110.jpg"><br>不过经过测试，给上传的文件名中敲了个enter发现会返回500.<br>报错 <code>TypeError: Cannot read property &#39;file&#39; of undefined</code></p>
+<p>KOA-BODY实际解析multipart时，也是用的formidable库，</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> S.HEADER_VALUE:</span><br><span class="line">  <span class="keyword">if</span> (c == CR) &#123;</span><br><span class="line">    dataCallback(<span class="string">&#x27;headerValue&#x27;</span>, <span class="literal">true</span>);</span><br><span class="line">    callback(<span class="string">&#x27;headerEnd&#x27;</span>);</span><br><span class="line">    state = S.HEADER_VALUE_ALMOST_DONE;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+<p>formidable库在读取headerValue时，读到\r后就结束，直接敲回车为\r\n。所以\nb”成为了新的一行，再次解析因为不合法导致报错，所以不能直敲回车。修改\r\n为\n后提交，依旧返回500.<br>报错 <code>  TypeError: Cannot read property &#39;name&#39; of undefined</code>，错误与之前的不相同了。<br>查看formiable解析filename的方法，</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">headerField = headerField.toLowerCase();</span><br><span class="line">part.headers[headerField] = headerValue;</span><br><span class="line"></span><br><span class="line"><span class="comment">// matches either a quoted-string or a token (RFC 2616 section 19.5.1)</span></span><br><span class="line"><span class="keyword">var</span> m = headerValue.match(<span class="regexp">/\bname=(&quot;([^&quot;]*)&quot;|([^\(\)&lt;&gt;@,;:\\&quot;\/\[\]\?=\&#123;\&#125;\s\t/]+))/i</span>);</span><br><span class="line"><span class="keyword">if</span> (headerField == <span class="string">&#x27;content-disposition&#x27;</span>) &#123;</span><br><span class="line">  <span class="keyword">if</span> (m) &#123;</span><br><span class="line">    part.name = m[<span class="number">2</span>] || m[<span class="number">3</span>] || <span class="string">&#x27;&#x27;</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  part.filename = self._fileName(headerValue);</span><br></pre></td></tr></table></figure>
+<p>调用_fileName方法获取filename</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">IncomingForm.prototype._fileName = <span class="function"><span class="keyword">function</span>(<span class="params">headerValue</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// matches either a quoted-string or a token (RFC 2616 section 19.5.1)</span></span><br><span class="line">  <span class="keyword">var</span> m = headerValue.match(<span class="regexp">/\bfilename=(&quot;(.*?)&quot;|([^\(\)&lt;&gt;@,;:\\&quot;\/\[\]\?=\&#123;\&#125;\s\t/]+))($|;\s)/i</span>);</span><br><span class="line">  <span class="keyword">if</span> (!m) <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">var</span> match = m[<span class="number">2</span>] || m[<span class="number">3</span>] || <span class="string">&#x27;&#x27;</span>;</span><br><span class="line">  <span class="keyword">var</span> filename = match.substr(match.lastIndexOf(<span class="string">&#x27;\\&#x27;</span>) + <span class="number">1</span>);</span><br><span class="line">  filename = filename.replace(<span class="regexp">/%22/g</span>, <span class="string">&#x27;&quot;&#x27;</span>);</span><br><span class="line">  filename = filename.replace(<span class="regexp">/&amp;#([\d]&#123;4&#125;);/g</span>, <span class="function"><span class="keyword">function</span>(<span class="params">m, code</span>) </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">String</span>.fromCharCode(code);</span><br><span class="line">  &#125;);</span><br><span class="line">  <span class="keyword">return</span> filename;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>在该方法中，通过正则来获取filename, 虽然正则中使用了”(.*?)”但是因为没有开启模式/s模式修正符导致.不能匹配\n，所以获取到的filename为null，最终导致了异常。<br>观察_fileName方法可以发现，在该方法中截取了”\“后的字符当作文件名，同时会将html实体给还原回来，所以通过在文件名中注入<code>&amp;#0010;</code>就可以注入换行。<br>可以注入换行后，就相当于可以执行任意命令了，只需要绕过checkname的过滤就行，绕过这个比较简单。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">checkname</span>(<span class="params">value</span>)</span>&#123;</span><br><span class="line">    <span class="keyword">const</span> re = <span class="keyword">new</span> <span class="built_in">RegExp</span>(<span class="regexp">/([&amp;;|$`&#x27;&quot;/\\])|([.]&#123;2&#125;)/</span>);</span><br><span class="line">    <span class="keyword">return</span> !re.test(value);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/01/05/16098430971940.jpg"></p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/01/05/16098431103154.jpg"></p>
+<h2 id="0x02-解决"><a href="#0x02-解决" class="headerlink" title="0x02 解决\"></a>0x02 解决\</h2><p>在_fileName方法中，因为<code>var filename = match.substr(match.lastIndexOf(&#39;\\&#39;) + 1);</code>的存在，导致文件名中不能含有”\“,如果可以含有”\“那么还可以尝试使用psql command实现rce。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (opts.json &amp;&amp; ctx.is(jsonTypes)) &#123;</span><br><span class="line">  bodyPromise = buddy.json(ctx, &#123;</span><br><span class="line">    encoding: opts.encoding,</span><br><span class="line">    limit: opts.jsonLimit,</span><br><span class="line">    strict: opts.jsonStrict,</span><br><span class="line">    returnRawBody: opts.includeUnparsed</span><br><span class="line">  &#125;);</span><br><span class="line">&#125; <span class="keyword">else</span> <span class="keyword">if</span> (opts.urlencoded &amp;&amp; ctx.is(<span class="string">&#x27;urlencoded&#x27;</span>)) &#123;</span><br><span class="line">  bodyPromise = buddy.form(ctx, &#123;</span><br><span class="line">    encoding: opts.encoding,</span><br><span class="line">    limit: opts.formLimit,</span><br><span class="line">    queryString: opts.queryString,</span><br><span class="line">    returnRawBody: opts.includeUnparsed</span><br><span class="line">  &#125;);</span><br><span class="line">&#125; <span class="keyword">else</span> <span class="keyword">if</span> (opts.text &amp;&amp; ctx.is(<span class="string">&#x27;text/*&#x27;</span>)) &#123;</span><br><span class="line">  bodyPromise = buddy.text(ctx, &#123;</span><br><span class="line">    encoding: opts.encoding,</span><br><span class="line">    limit: opts.textLimit,</span><br><span class="line">    returnRawBody: opts.includeUnparsed</span><br><span class="line">  &#125;);</span><br><span class="line">&#125; <span class="keyword">else</span> <span class="keyword">if</span> (opts.multipart &amp;&amp; ctx.is(<span class="string">&#x27;multipart&#x27;</span>)) &#123;</span><br><span class="line">  bodyPromise = formy(ctx, opts.formidable);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>koa-body在处理request时，对于不同的请求类型使用了不同的方法来解析，当请求类型是multipart时，调用了formy来解析。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">normalize</span> (<span class="params">type</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> type !== <span class="string">&#x27;string&#x27;</span>) &#123;</span><br><span class="line">    <span class="comment">// invalid type</span></span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">switch</span> (type) &#123;</span><br><span class="line">    <span class="keyword">case</span> <span class="string">&#x27;urlencoded&#x27;</span>:</span><br><span class="line">      <span class="keyword">return</span> <span class="string">&#x27;application/x-www-form-urlencoded&#x27;</span></span><br><span class="line">    <span class="keyword">case</span> <span class="string">&#x27;multipart&#x27;</span>:</span><br><span class="line">      <span class="keyword">return</span> <span class="string">&#x27;multipart/*&#x27;</span></span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>koa-body验证请求类型是否为multipart时，只验证了大类是否为multipart，不验证subtype, 所以multipart/xxxx 都会使用formy方法进行处理。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">formy</span>(<span class="params">ctx, opts</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">new</span> <span class="built_in">Promise</span>(<span class="function"><span class="keyword">function</span> (<span class="params">resolve, reject</span>) </span>&#123;</span><br><span class="line">    <span class="keyword">var</span> fields = &#123;&#125;;</span><br><span class="line">    <span class="keyword">var</span> files = &#123;&#125;;</span><br><span class="line">    <span class="keyword">var</span> form = <span class="keyword">new</span> forms.IncomingForm(opts);</span><br><span class="line">    ..............</span><br><span class="line">    form.parse(ctx.req);</span><br><span class="line">  &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在formy方法中，又调用了formidable库的parse方法解析request body。<br>formidable库中也会调用_parseContentType方法根据用户的content-type使用不同的方法解析body，</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">IncomingForm.prototype._parseContentType = <span class="function"><span class="keyword">function</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">this</span>.bytesExpected === <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="built_in">this</span>._parser = dummyParser(<span class="built_in">this</span>);</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (!<span class="built_in">this</span>.headers[<span class="string">&#x27;content-type&#x27;</span>]) &#123;</span><br><span class="line">    <span class="built_in">this</span>._error(<span class="keyword">new</span> <span class="built_in">Error</span>(<span class="string">&#x27;bad content-type header, no content-type&#x27;</span>));</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">this</span>.headers[<span class="string">&#x27;content-type&#x27;</span>].match(<span class="regexp">/octet-stream/i</span>)) &#123;</span><br><span class="line">    <span class="built_in">this</span>._initOctetStream();</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">this</span>.headers[<span class="string">&#x27;content-type&#x27;</span>].match(<span class="regexp">/urlencoded/i</span>)) &#123;</span><br><span class="line">    <span class="built_in">this</span>._initUrlencoded();</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">this</span>.headers[<span class="string">&#x27;content-type&#x27;</span>].match(<span class="regexp">/multipart/i</span>)) &#123;</span><br><span class="line">    <span class="keyword">var</span> m = <span class="built_in">this</span>.headers[<span class="string">&#x27;content-type&#x27;</span>].match(<span class="regexp">/boundary=(?:&quot;([^&quot;]+)&quot;|([^;]+))/i</span>);</span><br><span class="line">    <span class="keyword">if</span> (m) &#123;</span><br><span class="line">      <span class="built_in">this</span>._initMultipart(m[<span class="number">1</span>] || m[<span class="number">2</span>]);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="built_in">this</span>._error(<span class="keyword">new</span> <span class="built_in">Error</span>(<span class="string">&#x27;bad content-type header, no multipart boundary&#x27;</span>));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">this</span>.headers[<span class="string">&#x27;content-type&#x27;</span>].match(<span class="regexp">/json/i</span>)) &#123;</span><br><span class="line">    <span class="built_in">this</span>._initJSONencoded();</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>但是formidable与koa-body的类型判断存在一定的差异性，formidable的判断比较简陋，只要内容存在multipart等就会使用对应的方法进行处理，koa-body本身未对octet-stream进行特殊处理，而formidable有对octet-stream处理。<br>当content-type设置为 multipart/octet-stream, 因为octet-stream分支在最前，所以不会使用multipart处理而是使用octet-stream进行处理。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">IncomingForm.prototype._initOctetStream = <span class="function"><span class="keyword">function</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">  <span class="built_in">this</span>.type = <span class="string">&#x27;octet-stream&#x27;</span>;</span><br><span class="line">  <span class="keyword">var</span> filename = <span class="built_in">this</span>.headers[<span class="string">&#x27;x-file-name&#x27;</span>];</span><br><span class="line">  <span class="keyword">var</span> mime = <span class="built_in">this</span>.headers[<span class="string">&#x27;content-type&#x27;</span>];</span><br><span class="line"></span><br><span class="line">  <span class="keyword">var</span> file = <span class="keyword">new</span> File(&#123;</span><br><span class="line">    path: <span class="built_in">this</span>._uploadPath(filename),</span><br><span class="line">    name: filename,</span><br><span class="line">    type: mime</span><br><span class="line">  &#125;);</span><br></pre></td></tr></table></figure>
+<p>当请求类型为octet-stream时，文件名是从请求头中读取，并且未进行任何处理，所以这时候可以使用”\“字符。<br>这里假想一个环境，在真实环境的过滤中去除单引号以及”&quot;, 新增\n。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">checkname</span>(<span class="params">value</span>)</span>&#123;</span><br><span class="line">    <span class="keyword">const</span> re = <span class="keyword">new</span> <span class="built_in">RegExp</span>(<span class="regexp">/([&amp;;|$`&quot;/\n])|([.]&#123;2&#125;)/</span>);</span><br><span class="line">    <span class="keyword">return</span> !re.test(value);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>通过octet-stream方法，实现利用。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/01/05/16098450185482.jpg"><br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/01/05/16098450375285.jpg"></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2021 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

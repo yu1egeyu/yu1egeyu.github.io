@@ -63,6 +63,91 @@
 
   
     
+    <h3 class="article-title"><a href="/2018/07/07/phpMyAdmin4-8-1-文件包含漏洞/"><span>phpMyAdmin4.8.1 文件包含漏洞</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/07/07/phpMyAdmin4-8-1-文件包含漏洞/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-07-07T08:58:59.000Z">
+          2018-07-07
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="起因"><a href="#起因" class="headerlink" title="起因"></a>起因</h2><p>一个很简单的漏洞, 分析的文章也都出来了很多, 但是看了那些文章, 我一直搞不懂为啥问号要双重url编码, 我自己看那些文章感觉不编码应该也能成功利用的。 并且好像大家对问号编码的说法各有不同。 还是自己下载了份源码看了一下。</p>
+<blockquote>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15309457552552.jpg"></p>
+</blockquote>
+<blockquote>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15309458322102.jpg"></p>
+</blockquote>
+<p>4.8.1下载地址:<a target="_blank" rel="noopener" href="https://files.phpmyadmin.net/phpMyAdmin/4.8.1/phpMyAdmin-4.8.1-all-languages.zip">https://files.phpmyadmin.net/phpMyAdmin/4.8.1/phpMyAdmin-4.8.1-all-languages.zip</a></p>
+<hr>
+<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>在index.php中</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F; If we have a valid target, let&#39;s load that script instead</span><br><span class="line">if (! empty($_REQUEST[&#39;target&#39;])</span><br><span class="line">    &amp;&amp; is_string($_REQUEST[&#39;target&#39;])</span><br><span class="line">    &amp;&amp; ! preg_match(&#39;&#x2F;^index&#x2F;&#39;, $_REQUEST[&#39;target&#39;])</span><br><span class="line">    &amp;&amp; ! in_array($_REQUEST[&#39;target&#39;], $target_blacklist)</span><br><span class="line">    &amp;&amp; Core::checkPageValidity($_REQUEST[&#39;target&#39;])</span><br><span class="line">) &#123;</span><br><span class="line">    include($_REQUEST[&#39;target&#39;]);</span><br><span class="line">    exit;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以加载一些脚本。<br>直接看最后一个检测</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="built_in">static</span> <span class="function"><span class="keyword">function</span> <span class="title">checkPageValidity</span>(<span class="params">&amp;$page, <span class="keyword">array</span> $whitelist = []</span>)</span></span><br><span class="line"><span class="function">    </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">empty</span>($whitelist)) &#123;</span><br><span class="line">            $whitelist = <span class="built_in">self</span>::$goto_whitelist;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (! <span class="keyword">isset</span>($page) || !is_string($page)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (in_array($page, $whitelist)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        $_page = mb_substr(</span><br><span class="line">            $page,</span><br><span class="line">            <span class="number">0</span>,</span><br><span class="line">            mb_strpos($page . <span class="string">&#x27;?&#x27;</span>, <span class="string">&#x27;?&#x27;</span>)</span><br><span class="line">        ); <span class="comment">// $page 是我们传递进来的要包含的文件</span></span><br><span class="line">           <span class="comment">// 这里是截取到$page里?之前的文件名 并存入$_page中,</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 如果$_page, 在白名单之类的话, 直接通过, 所以这里我们不用双重编码也会return true.</span></span><br><span class="line">        <span class="comment">// public static $goto_whitelist = array(</span></span><br><span class="line">        <span class="comment">//      &#x27;db_datadict.php&#x27;,</span></span><br><span class="line">        <span class="comment">//      &#x27;db_sql.php&#x27;,</span></span><br><span class="line">        <span class="comment">//      &#x27;db_events.php&#x27;,</span></span><br><span class="line">        <span class="comment">//       随便从白名单的列表中选一个文件就行了。</span></span><br><span class="line">        </span><br><span class="line">        <span class="keyword">if</span> (in_array($_page, $whitelist)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">        &#125; </span><br><span class="line"></span><br><span class="line">        <span class="comment">// 如果双重编码, 在下面这个流程里因为解码了, 也会return true</span></span><br><span class="line">        $_page = urldecode($page);</span><br><span class="line">        $_page = mb_substr(</span><br><span class="line">            $_page,</span><br><span class="line">            <span class="number">0</span>,</span><br><span class="line">            mb_strpos($_page . <span class="string">&#x27;?&#x27;</span>, <span class="string">&#x27;?&#x27;</span>)</span><br><span class="line">        );</span><br><span class="line">        <span class="keyword">if</span> (in_array($_page, $whitelist)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>return true了, 就直接include了。</p>
+<p>直接传 db_sql.php?/../robots.txt 就能成功包含到了。<br>不需要编码, 因为这时候 include ‘db_sql.php?/../robots.txt’<br>在include中, ?号后面的字符 并不会当成query,<br>问号也就只是路径的一部分而已。  所以不需要编码, 利用/../ 也能跳出目录。</p>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15309534675943.jpg"></p>
+<hr>
+<p>Getshell的话,  根据p师傅的思路,执行sql语句后, 直接包含session文件就行。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">$session_name &#x3D; &#39;phpMyAdmin&#39;;</span><br><span class="line">@session_name($session_name);</span><br><span class="line"></span><br><span class="line">&#x2F;&#x2F; Restore correct sesion ID (it might have been reset by auto started session</span><br><span class="line">if (isset($_COOKIE[&#39;phpMyAdmin&#39;])) &#123;</span><br><span class="line">    session_id($_COOKIE[&#39;phpMyAdmin&#39;]);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>phpmyadmin的session_name 是phpMyAdmin</p>
+<p>执行的sql语句存入session的有两个位置。 一个就是sql_history。<br>/libraries/classes/Relation.php中</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$_SESSION[<span class="string">&#x27;sql_history&#x27;</span>][] = <span class="keyword">array</span>(</span><br><span class="line">    <span class="string">&#x27;db&#x27;</span> =&gt; $db,</span><br><span class="line">    <span class="string">&#x27;table&#x27;</span> =&gt; $table,</span><br><span class="line">    <span class="string">&#x27;sqlquery&#x27;</span> =&gt; $sqlquery,</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p>这里的$sqlquery 就是所执行的sql语句, 然后存入到了$_SESSION当中。</p>
+<hr>
+<h2 id="修复"><a href="#修复" class="headerlink" title="修复"></a>修复</h2><p>4.8.2中, 修复了这个漏洞。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">if (! empty($_REQUEST[&#39;target&#39;])</span><br><span class="line">    &amp;&amp; is_string($_REQUEST[&#39;target&#39;])</span><br><span class="line">    &amp;&amp; ! preg_match(&#39;&#x2F;^index&#x2F;&#39;, $_REQUEST[&#39;target&#39;])</span><br><span class="line">    &amp;&amp; ! in_array($_REQUEST[&#39;target&#39;], $target_blacklist)</span><br><span class="line">    &amp;&amp; Core::checkPageValidity($_REQUEST[&#39;target&#39;], [], true)</span><br><span class="line">) &#123;</span><br><span class="line">    include $_REQUEST[&#39;target&#39;];</span><br><span class="line">    exit;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在调用checkPageValidity方法的时候, 第三个参数设置为了true</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">public static function checkPageValidity(&amp;$page, array $whitelist &#x3D; [], $include &#x3D; false)</span><br><span class="line">&#123;</span><br><span class="line"></span><br><span class="line">    if (empty($whitelist)) &#123;</span><br><span class="line">        $whitelist &#x3D; self::$goto_whitelist;</span><br><span class="line">    &#125;</span><br><span class="line">    if (! isset($page) || !is_string($page)) &#123;</span><br><span class="line">        return false;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    if (in_array($page, $whitelist)) &#123;</span><br><span class="line">        return true;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    if ($include) &#123;</span><br><span class="line">        return false;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    $_page &#x3D; mb_substr(</span><br><span class="line">        $page,</span><br><span class="line">        0,</span><br><span class="line">        mb_strpos($page . &#39;?&#39;, &#39;?&#39;)</span><br><span class="line">    );</span><br><span class="line">    if (in_array($_page, $whitelist)) &#123;</span><br><span class="line">        return true;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>当第三个参数为true的时候, 在mb_substr之前, 就return false了。<br>所以, 现在真的只能包含白名单内的文件了。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/web/">web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2018/05/30/TCTF-h4x0rs-date/"><span>TCTF-h4x0rs.date</span></a></h3>
     
   
@@ -706,7 +791,7 @@ select username from qs_members where username = &#39;yu&#39; union select 1 fro
     Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
     </br>
     
-    &copy; 2020 雨了个雨
+    &copy; 2021 雨了个雨
     
   </p>
 </footer>
