@@ -1,0 +1,158 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>JEESITE V1.2.7 任意文件读取漏洞 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="JEESITE V1.2.7 任意文件读取漏洞"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/friends">Friends</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>JEESITE V1.2.7 任意文件读取漏洞</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2021/06/19/JEESITE-V1-2-7-任意文件读取漏洞/" rel="bookmark">
+        <time class="entry-date published" datetime="2021-06-19T02:58:48.000Z">
+          2021-06-19
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h1 id="JEESITE-V1-2-7-任意文件读取漏洞"><a href="#JEESITE-V1-2-7-任意文件读取漏洞" class="headerlink" title="JEESITE V1.2.7 任意文件读取漏洞"></a>JEESITE V1.2.7 任意文件读取漏洞</h1><p>打强网杯的时候，一道题目直接就是考JEESITE V1.2.7读配置文件，用以前挖的一个洞拿了flag，漏洞比较简单水一篇。<br>JEESITE存在两个版本JEESITE1、JEESITE4，其中1.2.7是JEESITE1中的最新版本，不过已经在四年前就不再维护。</p>
+<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>com/thinkgem/jeesite/common/servlet/UserfilesDownloadServlet.java</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">fileOutputStream</span><span class="params">(HttpServletRequest req, HttpServletResponse resp)</span> </span></span><br><span class="line"><span class="function">		<span class="keyword">throws</span> ServletException, IOException </span>&#123;</span><br><span class="line">	String filepath = req.getRequestURI();</span><br><span class="line">	<span class="keyword">int</span> index = filepath.indexOf(Global.USERFILES_BASE_URL);</span><br><span class="line">	<span class="keyword">if</span>(index &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">		filepath = filepath.substring(index + Global.USERFILES_BASE_URL.length());</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">try</span> &#123;</span><br><span class="line">		filepath = UriUtils.decode(filepath, <span class="string">&quot;UTF-8&quot;</span>);</span><br><span class="line">	&#125; <span class="keyword">catch</span> (UnsupportedEncodingException e1) &#123;</span><br><span class="line">		logger.error(String.format(<span class="string">&quot;解释文件路径失败，URL地址为%s&quot;</span>, filepath), e1);</span><br><span class="line">	&#125;</span><br><span class="line">	File file = <span class="keyword">new</span> File(Global.getUserfilesBaseDir() + Global.USERFILES_BASE_URL + filepath);</span><br><span class="line">	<span class="keyword">try</span> &#123;</span><br><span class="line">		FileCopyUtils.copy(<span class="keyword">new</span> FileInputStream(file), resp.getOutputStream());</span><br><span class="line">		resp.setHeader(<span class="string">&quot;Content-Type&quot;</span>, <span class="string">&quot;application/octet-stream&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line">	&#125; <span class="keyword">catch</span> (FileNotFoundException e) &#123;</span><br><span class="line">		req.setAttribute(<span class="string">&quot;exception&quot;</span>, <span class="keyword">new</span> FileNotFoundException(<span class="string">&quot;请求的文件不存在&quot;</span>));</span><br><span class="line">		req.getRequestDispatcher(<span class="string">&quot;/WEB-INF/views/error/404.jsp&quot;</span>).forward(req, resp);</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">doGet</span><span class="params">(HttpServletRequest req, HttpServletResponse resp)</span></span></span><br><span class="line"><span class="function">		<span class="keyword">throws</span> ServletException, IOException </span>&#123;</span><br><span class="line">	fileOutputStream(req, resp);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">doPost</span><span class="params">(HttpServletRequest req, HttpServletResponse resp)</span></span></span><br><span class="line"><span class="function">		<span class="keyword">throws</span> ServletException, IOException </span>&#123;</span><br><span class="line">	fileOutputStream(req, resp);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>该servlet用来查看CK上传的图片，配置的路由为</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">servlet-mapping</span>&gt;</span></span><br><span class="line">  	<span class="tag">&lt;<span class="name">servlet-name</span>&gt;</span>UserfilesDownloadServlet<span class="tag">&lt;/<span class="name">servlet-name</span>&gt;</span></span><br><span class="line">  	<span class="tag">&lt;<span class="name">url-pattern</span>&gt;</span>/userfiles/*<span class="tag">&lt;/<span class="name">url-pattern</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">servlet-mapping</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>该Servlet方法很简单，直接获取RequestURI稍作处理后就开始读取文件。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">String filepath = req.getRequestURI();</span><br><span class="line">		<span class="keyword">int</span> index = filepath.indexOf(Global.USERFILES_BASE_URL);</span><br><span class="line">		<span class="keyword">if</span>(index &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">			filepath = filepath.substring(index + Global.USERFILES_BASE_URL.length());</span><br><span class="line">		&#125;</span><br></pre></td></tr></table></figure>
+
+<p>filepath即为RequestURI中”/userfiles/“之后的内容，<br>File file = new File(Global.getUserfilesBaseDir() + Global.USERFILES_BASE_URL + filepath); 虽然限制了只能读取/userfiles/下的文件，但是如果能在filepath进行目录穿越依然能够实现任意文件读取。</p>
+<p>不过这里存在一个问题，因为是通过RequestURI获取的文件名而不是GET/POST参数，当需要通过目录穿越读取任意文件时需要在URI中包含”../“，当URI为/userfiles/../xxxxx 会先在TOMCAT这目录穿越，最终请求到的是xxxxx接口，无法访问到UserfilesDownloadServlet。<br>虽然后面有对filepath进行url解码操作，但是req.getRequestURI获取到的是未URL解码的数据，造成无法二次编码最多只能一次编码，/userfiles/%2e%2e/xxxx 一次编码会被tomcat容器给处理掉然后目录穿越，最后还是无法访问到UserfilesDownloadServlet。</p>
+<p>再回过头来看一下对filepath的处理，</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">String filepath = req.getRequestURI();</span><br><span class="line">		<span class="keyword">int</span> index = filepath.indexOf(Global.USERFILES_BASE_URL);</span><br><span class="line">		<span class="keyword">if</span>(index &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">			filepath = filepath.substring(index + Global.USERFILES_BASE_URL.length());</span><br><span class="line">		&#125;</span><br></pre></td></tr></table></figure>
+<p>USERFILES_BASE_URL的定义，<br>public static final String USERFILES_BASE_URL = “/userfiles/“;</p>
+<p>首先从requesturi中查找/userfiles/的起始位置，然后截取它后面的内容作为filepath，这里userfiles后面有/，这时候借助TOMCAT的path parameter特性”;”后面的内容会当作参数，/userfiles;xxx/依然能够访问到UserfilesDownloadServlet。<br>但是这时候因为没能在requesturi中找到/userfiles/，就将整个requesturi带入到了文件读取的目录中这样肯定也是不行的。可以通过在/userfiles;xxx/再新增一个/userfiles/xxxx, 即/userfiles;xxx/userfiles/xxxxx，字符串截取后filepath后就为xxxxx，并且这时候可以发现requesturi中已经存在了两个目录，这时候再目录穿越/userfiles;xxx/userfiles/../xxxx, tomcat处理后/userfiles/xxxx 依然请求到了UserfilesDownloadServlet，并且此时filepath为../xxxx可以实现目录穿越读取任意文件了，只要requesturi中的目录够多那么就可以目录穿越任意数量目录，在/userfiles/前面新增大数量的目录即可。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/06/19/16240714250924.jpg" alt="-w1560"></p>
+<p>qwb利用，</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/06/13/16235996547514.jpg"></p>
+<p>登录邮箱拿到flag<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/06/13/16235996640611.jpg"></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2021 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

