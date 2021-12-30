@@ -63,6 +63,106 @@
 
   
     
+    <h3 class="article-title"><a href="/2017/04/24/为什么$_SERVER['HTTP_HOST']有时是不可控的。/"><span>为什么$_SERVER[&#39;HTTP_HOST&#39;]有时是不可控的</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2017/04/24/为什么$_SERVER['HTTP_HOST']有时是不可控的。/" rel="bookmark">
+        <time class="entry-date published" datetime="2017-04-24T01:35:11.000Z">
+          2017-04-24
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>最近在看一套程序的时候, 看到一段代码。<br>如果SERVRT[&apos;HTTP_HOST&apos;]可以控制的话, 可以造成一个漏洞,<br>本地是测试成功了, 但是在测试demo的时候就失败掉了。<br>所以这里来谈谈SERVER[&apos;HTTP_HOST&apos;]为什么有时会不可控。</p>
+<hr>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">    GET &#x2F;123.php HTTP&#x2F;1.1</span><br><span class="line">    Host: localhost</span><br><span class="line">    User-Agent: Mozilla&#x2F;5.0 (Macintosh; Intel Mac OS X 10.12; rv:52.0) Gecko&#x2F;20100101 Firefox&#x2F;52.0</span><br><span class="line">Accept: text&#x2F;html,application&#x2F;xhtml+xml,application&#x2F;xml;q&#x3D;0.9,*&#x2F;*;q&#x3D;0.8</span><br><span class="line">    Accept-Language: zh,en-US;q&#x3D;0.7,en;q&#x3D;0.3</span><br><span class="line">    Accept-Encoding: gzip, deflate</span><br></pre></td></tr></table></figure>
+
+<p>平时我们在抓包的时候, 都会发现包里会有个Host header, </p>
+<p>一些同学会以为HTTP的联机就是靠包里的HOST header来连接的,<br>所以会认为如果修改掉包里的HOST, 那么就连接不到目标服务器,<br>所以是不可控的。</p>
+<p>其实HTTP的联机与包里的HOST并没有啥关系, HTTP的联机是TCP/IP建立的, 所以修改掉HOST HEADER并不会把包丢到另外一个服务器上。</p>
+<p>那么为什么有时候修改HOST HEADER的时候, 还是会请求失败掉。<br>其实包里的HOST HEADER, 主要是针对虚拟主机来使用的,<br>在一个ip上搭多个域名的时候,需要使用HOST HEADER来分辨交给哪个virtual host来处理。</p>
+<hr>
+<p>测试一下<br>在httpd.conf里添加了</p>
+<pre><code>&lt;VirtualHost *:80&gt;
+    DocumentRoot &quot;/tmp/web/ep1&quot;
+    ServerName www.example.com
+    &lt;Directory &quot;/tmp/web/ep1&quot;&gt;
+       Options FollowSymLinks
+       AllowOverride None
+       Require all granted
+    &lt;/Directory&gt;
+&lt;/VirtualHost&gt;
+&lt;VirtualHost _default_:80&gt;
+    DocumentRoot &quot;/tmp/web/ep2&quot;
+    ServerName www.example2.com
+    &lt;Directory &quot;/tmp/web/ep2&quot;&gt;
+       Options FollowSymLinks
+       AllowOverride None
+       Require all granted
+    &lt;/Directory&gt;
+&lt;/VirtualHost&gt;</code></pre>
+<p>/tmp/ep2/ep2.php   <a target="_blank" rel="noopener" href="http://www.example2.com/">www.example2.com</a><br>/tmp/ep1/ep1.php   <a target="_blank" rel="noopener" href="http://www.example.com/">www.example.com</a></p>
+<pre><code>&lt;?php
+var_dump($_SERVER[&#39;HTTP_HOST&#39;]);</code></pre>
+<p><img src="http://onw16foqc.bkt.clouddn.com/14929968127068.jpg"></p>
+<p>在修改了HOST之后就404了。因为这个时候Host header 与 ServerName <a target="_blank" rel="noopener" href="http://www.example2.com/">www.example2.com</a> 匹配不上了, 所以现在并不是到目录/tmp/web/ep2了, 并不存在ep2.php</p>
+<p><img src="http://onw16foqc.bkt.clouddn.com/14929968308100.jpg"></p>
+<p>那么是不是虚拟主机的HTTP_HOST一定就没办法控制呢, 读一下文档</p>
+<blockquote>
+<p>The asterisks match all addresses, so the main server serves no requests. Due to the fact that the virtual host with ServerName <a target="_blank" rel="noopener" href="http://www.example.com/">www.example.com</a> is first in the configuration file, it has the highest priority and can be seen as the default or primary server. That means that if a request is received that does not match one of the specified ServerName directives, it will be served by this first <VirtualHost>.</p>
+</blockquote>
+<p>也就是说, 在配置文件里, 第一个配置的virtualhost, 具有最高优先级, 如果HOST HEADER里的与配置文件里的所有vitualhost里的ServerName都匹配不上的话, 那就会是第一个来服务, 如果恰巧你测试的站是第一个的话…… 。</p>
+<p><img src="http://onw16foqc.bkt.clouddn.com/14929971076072.jpg"></p>
+<p>这里的文件为ep1.php, 这里的HOST HEADER, 与ServerName 都匹配不上, 那么还是交给第一个来处理了, 所以ep1.php 能访问到, 然后修改掉了HTTP_HOST。</p>
+<hr>
+<p>不过这种漏洞也已经很鸡肋了, 在最新版本的apache(2.4.25)中, 已经不允许HOST HEADER中出现一些特殊字符了。不过在低版本中, 还是能引入单引号空格之类的字符的。</p>
+<p><img src="http://onw16foqc.bkt.clouddn.com/14929974434175.jpg"></p>
+<blockquote>
+<p>对请求行和请求头强制实施与RFC7230相对应的HTTP请求语法，以防止恶意客户端或下游代理对响应分裂和缓存污染</p>
+</blockquote>
+<p><img src="http://onw16foqc.bkt.clouddn.com/14929975153275.jpg"></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2017/04/16/当表名可控的注入遇到了Describe时的几种情况。/"><span>当表名可控的注入遇到了Describe时的几种情况。</span></a></h3>
     
   
