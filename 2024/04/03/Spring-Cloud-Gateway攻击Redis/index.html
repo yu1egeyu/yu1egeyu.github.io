@@ -1,0 +1,202 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Spring Cloud Gateway攻击Redis | 雨了个雨&#39;s blog</title>
+
+  
+  <meta name="author" content="雨了个雨">
+  
+
+  
+  <meta name="description" content="Focus On Web Security">
+  
+
+  
+  
+  <meta name="keywords" content="Web">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Spring Cloud Gateway攻击Redis"/>
+
+  <meta property="og:site_name" content="雨了个雨&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="雨了个雨&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">雨了个雨&#39;s blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/friends">Friends</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Spring Cloud Gateway攻击Redis</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2024/04/03/Spring-Cloud-Gateway攻击Redis/" rel="bookmark">
+        <time class="entry-date published" datetime="2024-04-03T06:27:37.000Z">
+          2024-04-03
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>案例来源于去年二月的一次攻防项目，在进入到目标公司外网nacos后，通过翻阅nacos中的配置文件发现存在gateway路由配置文件，以及内网redis地址、密码。</p>
+<p>尝试在nacos中通过编辑路由配置文件，通过新增路由以及配置AddResponseHeader过滤器执行SPEL表达式实现RCE。</p>
+<p>测试后发现由于目标是高版本的Spring Cloud修复了该漏洞只能执行简单SPEL表达式无法实现RCE，在最后我们通过Gateway攻击了内网的redis实现了RCE。<br>本文以spring-cloud-starter-gateway3.1.5测试。</p>
+<h1 id="漏洞利用"><a href="#漏洞利用" class="headerlink" title="漏洞利用"></a>漏洞利用</h1><p>以actuator/gateway来介绍该利用方法（和nacos原理差不多，通过heapdump也能获取到redis地址密码）。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121259001003.jpg"></p>
+<p>spring-cloud-starter-gateway#3.0.7、3.1.1修复了CVE-2022-22947，使用GatewayEvaluationContext替换了StandardEvaluationContext。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">GatewayEvaluationContext</span> <span class="keyword">implements</span> <span class="title">EvaluationContext</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> BeanFactoryResolver beanFactoryResolver;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> SimpleEvaluationContext delegate;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">GatewayEvaluationContext</span><span class="params">(BeanFactory beanFactory)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.beanFactoryResolver = <span class="keyword">new</span> BeanFactoryResolver(beanFactory);</span><br><span class="line">        Environment env = (Environment)beanFactory.getBean(Environment.class);</span><br><span class="line">        <span class="keyword">boolean</span> restrictive = (Boolean)env.getProperty(<span class="string">&quot;spring.cloud.gateway.restrictive-property-accessor.enabled&quot;</span>, Boolean.class, <span class="keyword">true</span>);</span><br><span class="line">        <span class="keyword">if</span> (restrictive) &#123;</span><br><span class="line">            <span class="keyword">this</span>.delegate = SimpleEvaluationContext.forPropertyAccessors(<span class="keyword">new</span> PropertyAccessor[]&#123;<span class="keyword">new</span> RestrictivePropertyAccessor()&#125;).withMethodResolvers(<span class="keyword">new</span> MethodResolver[]&#123;(context, targetObject, name, argumentTypes) -&gt; &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">            &#125;&#125;).build();</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">this</span>.delegate = SimpleEvaluationContext.forReadOnlyDataBinding().build();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>在GatewayEvaluationContext中，生成了SimpleEvaluationContext以及限制了属性的访问和方法的调用。导致从3.0.7开始只能执行一些简单的的SPEL表达式，无法再实现RCE。</p>
+<p>题外话，在实战中，经常会遇到通过/actuator/gateway/routes能够发现一些其他攻击者新增的路由，但是自己新增后refresh一直不存在。这种通常是因为被其他攻击者插入了错误路由，导致在refresh的时候一直异常没法新增。<br>比如其他攻击者在之前已经新增了一个命令执行的路由（或者语法错误的），<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121259290271.jpg"></p>
+<p>然后此时我们去查看路由，是不存在spel这个恶意路由的。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121259394241.jpg"></p>
+<p>因为版本比较高，漏洞已经修复的原因，导致refresh的时候直接出了异常，所以没法新增路由。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121259868111.jpg"></p>
+<p>这个时候我们需要先将存在错误的路由给删除掉。<br>/actuator/gateway/routes 没法看到恶意的路由，通过/actuator/gateway/routedefinitions 接口可以查看到所有的。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121259936790.jpg"></p>
+<p>然后将这个错误路由删除掉，即可正常新增路由了。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121260031184.jpg"></p>
+<p>再回到漏洞利用，没法通过SPEL来实现RCE，并且已知了内网redis地址以及密码，很容易想到能否通过新增一个路由来指向redis地址，然后来攻击redis。<br>虽然gateway新增的路由仅支持http/https协议，但是因为我们能够完全的控制请求包，意味着可以随意的注入新行，按理也能正常攻击redis。</p>
+<p>首先创建一个指向redis的路由，然后刷新，访问路由。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">      &quot;id&quot;: &quot;redis&quot;,</span><br><span class="line">      &quot;predicates&quot;: [</span><br><span class="line">        &quot;Path&#x3D;&#x2F;xxxxxxxx&#x2F;**&quot;</span><br><span class="line">    ],</span><br><span class="line">      &quot;filters&quot;: [],</span><br><span class="line">      &quot;uri&quot;: &quot;http:&#x2F;&#x2F;localhost:6379&#x2F;&quot;,</span><br><span class="line">      &quot;order&quot;: 0</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121260259689.jpg"></p>
+<p>在请求gateway的路由后，gateway确实将完整的请求转发到了redis端口上。<br><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121260349566.jpg"><br>[图片]</p>
+<p>然后正常来说，只需要在一个新行里面注入slaveof xx xx即可实现RCE，此时又有了新的问题。</p>
+<p>io.netty.handler.codec.DefaultHeaders</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> T <span class="title">addObject</span><span class="params">(K name, Object value)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">this</span>.add(name, <span class="keyword">this</span>.valueConverter.convertObject(ObjectUtil.checkNotNull(value, <span class="string">&quot;value&quot;</span>)));</span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="keyword">public</span> T <span class="title">add</span><span class="params">(K name, V value)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">this</span>.nameValidator.validateName(name);</span><br><span class="line">    ObjectUtil.checkNotNull(value, <span class="string">&quot;value&quot;</span>);</span><br><span class="line">    <span class="keyword">int</span> h = <span class="keyword">this</span>.hashingStrategy.hashCode(name);</span><br><span class="line">    <span class="keyword">int</span> i = <span class="keyword">this</span>.index(h);</span><br><span class="line">    <span class="keyword">this</span>.add0(h, i, name, value);</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">this</span>.thisT();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在Spring Cloud Gateway解析重组request的header时，首先通过:分割得到header的name和value，然后调用addObject方法来添加请求头，在该方法中通过validateName方法来验证header name是否合法，this.valueConverter.convertObject方法来转换header value。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121260574317.jpg"></p>
+<p>验证了header name中是否存在空白符，如果存在空白符就直接抛出了异常。所以没法在header中插入slaveof xxx来实现RCE。</p>
+<p>虽然没法在header name中插入redis语句，但是又很容易想到request body里面肯定不会存在限制，可以随意的插入redis语句。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121260849960.jpg"></p>
+<p>成功在请求包中插入了redis语句。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">processCommand</span><span class="params">(client *c)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!scriptIsTimedout()) &#123;</span><br><span class="line">        <span class="comment">/* Both EXEC and scripts call call() directly so there should be</span></span><br><span class="line"><span class="comment">         * no way in_exec or scriptIsRunning() is 1.</span></span><br><span class="line"><span class="comment">         * That is unless lua_timedout, in which case client may run</span></span><br><span class="line"><span class="comment">         * some commands. */</span></span><br><span class="line">        serverAssert(!server.in_exec);</span><br><span class="line">        serverAssert(!scriptIsRunning());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* in case we are starting to ProcessCommand and we already have a command we assume</span></span><br><span class="line"><span class="comment">     * this is a reprocessing of this command, so we do not want to perform some of the actions again. */</span></span><br><span class="line">    <span class="keyword">int</span> client_reprocessing_command = c-&gt;cmd ? <span class="number">1</span> : <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* only run command filter if not reprocessing command */</span></span><br><span class="line">    <span class="keyword">if</span> (!client_reprocessing_command) &#123;</span><br><span class="line">        moduleCallCommandFilters(c);</span><br><span class="line">        reqresAppendRequest(c);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Handle possible security attacks. */</span></span><br><span class="line">    <span class="keyword">if</span> (!strcasecmp(c-&gt;argv[<span class="number">0</span>]-&gt;ptr,<span class="string">&quot;host:&quot;</span>) || !strcasecmp(c-&gt;argv[<span class="number">0</span>]-&gt;ptr,<span class="string">&quot;post&quot;</span>)) &#123;</span><br><span class="line">        securityWarningCommand(c);</span><br><span class="line">        <span class="keyword">return</span> C_ERR;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>但是很容易想到一个问题，redis在很久以前逐行处理命令的时候，就会判断该行中是否含有host: 或者 post关键字，如果含有则会直接返回异常不再继续处理后续的命令。</p>
+<p>POST这个关键字没影响，因为我可以随意修改请求包，GET+request body，但是host:这个关键字经过测试，就算我在请求包中删除了host头，经过了gateway的解析重组后它会自动的添加上host头导致没法解决。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121261077355.jpg"></p>
+<p>在这里卡了几十分钟，一直没法解决。后面想到，既然之前的spel漏洞利用是通过新增filter AddResponseHeader来实现的，那么有没有什么其他的filter能帮助我删除掉host头。</p>
+<p><a target="_blank" rel="noopener" href="https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway/gatewayfilter-factories/removerequestheader-factory.html">https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway/gatewayfilter-factories/removerequestheader-factory.html</a></p>
+<p>翻阅文档发现还真有一个removerequestheader的filter，最后经过测试发现并不能实现利用，在gateway解析重组的流程中，是先把filter链作用完后再添加了host header，导致无法实现利用。<br>然后又只能继续翻阅文档看看还有没有什么好玩的filter，</p>
+<p><a target="_blank" rel="noopener" href="https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway-server-mvc/filters/addrequestheader.html">https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway-server-mvc/filters/addrequestheader.html</a></p>
+<p>发现存在addrequestheader filter，能够想到如果在filter链中重组header时，如果gateway没有处理好crlf也可能利用。<br>addrequestheader组装header最后调用和之前提到的是一致的</p>
+<p>io.netty.handler.codec.http.DefaultHttpHeaders#addObject，</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> T <span class="title">addObject</span><span class="params">(K name, Object value)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">this</span>.add(name, <span class="keyword">this</span>.valueConverter.convertObject(ObjectUtil.checkNotNull(value, <span class="string">&quot;value&quot;</span>)));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在this.valueConverter.convertObject中，HeaderValueConverterAndValidator对header value进行校验</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">HeaderValueConverterAndValidator</span> <span class="keyword">extends</span> <span class="title">HeaderValueConverter</span> </span>&#123;</span><br><span class="line">    <span class="keyword">static</span> <span class="keyword">final</span> HeaderValueConverterAndValidator INSTANCE = <span class="keyword">new</span> HeaderValueConverterAndValidator();</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="title">HeaderValueConverterAndValidator</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">super</span>(<span class="keyword">null</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> CharSequence <span class="title">convertObject</span><span class="params">(Object value)</span> </span>&#123;</span><br><span class="line">        CharSequence seq = <span class="keyword">super</span>.convertObject(value);</span><br><span class="line">        <span class="keyword">int</span> state = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span>(<span class="keyword">int</span> index = <span class="number">0</span>; index &lt; seq.length(); ++index) &#123;</span><br><span class="line">            state = validateValueChar(seq, state, seq.charAt(index));</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (state != <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;a header value must not end with &#x27;\\r&#x27; or &#x27;\\n&#x27;:&quot;</span> + seq);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> seq;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">int</span> <span class="title">validateValueChar</span><span class="params">(CharSequence seq, <span class="keyword">int</span> state, <span class="keyword">char</span> character)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> ((character &amp; -<span class="number">16</span>) == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">switch</span> (character) &#123;</span><br><span class="line">                <span class="keyword">case</span> <span class="string">&#x27;\u0000&#x27;</span>:</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;a header value contains a prohibited character &#x27;\u0000&#x27;: &quot;</span> + seq);</span><br><span class="line">                <span class="keyword">case</span> <span class="string">&#x27;\u000b&#x27;</span>:</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;a header value contains a prohibited character &#x27;\\v&#x27;: &quot;</span> + seq);</span><br><span class="line">                <span class="keyword">case</span> <span class="string">&#x27;\f&#x27;</span>:</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;a header value contains a prohibited character &#x27;\\f&#x27;: &quot;</span> + seq);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">switch</span> (state) &#123;</span><br><span class="line">            <span class="keyword">case</span> <span class="number">0</span>:</span><br><span class="line">                <span class="keyword">switch</span> (character) &#123;</span><br><span class="line">                    <span class="keyword">case</span> <span class="string">&#x27;\n&#x27;</span>:</span><br><span class="line">                        <span class="keyword">return</span> <span class="number">2</span>;</span><br><span class="line">                    <span class="keyword">case</span> <span class="string">&#x27;\r&#x27;</span>:</span><br><span class="line">                        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">                &#125;</span><br><span class="line">            <span class="keyword">default</span>:</span><br><span class="line">                <span class="keyword">return</span> state;</span><br><span class="line">            <span class="keyword">case</span> <span class="number">1</span>:</span><br><span class="line">                <span class="keyword">if</span> (character == <span class="string">&#x27;\n&#x27;</span>) &#123;</span><br><span class="line">                    <span class="keyword">return</span> <span class="number">2</span>;</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;only &#x27;\\n&#x27; is allowed after &#x27;\\r&#x27;: &quot;</span> + seq);</span><br><span class="line">            <span class="keyword">case</span> <span class="number">2</span>:</span><br><span class="line">                <span class="keyword">switch</span> (character) &#123;</span><br><span class="line">                    <span class="keyword">case</span> <span class="string">&#x27;\t&#x27;</span>:</span><br><span class="line">                    <span class="keyword">case</span> <span class="string">&#x27; &#x27;</span>:</span><br><span class="line">                        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">                    <span class="keyword">default</span>:</span><br><span class="line">                        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;only &#x27; &#x27; and &#x27;\\t&#x27; are allowed after &#x27;\\n&#x27;: &quot;</span> + seq);</span><br><span class="line">                &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>从该方法中可以看出，如果header value中只\n是不行的，但是只要\t在\n后面就可以，\t不会影响redis命令的解析。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121261671474.jpg"></p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121261743436.jpg"></p>
+<p>\n抛出了异常，修改为                   “value”: “\n\taaaa” </p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121261984204.jpg"></p>
+<p>成功注入了新行，并且在host之前。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121261929033.jpg"></p>
+<p>成功执行了redis命令，最终RCE了目标系统。</p>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>Spring Cloud Gateway 3.1.6修复了CRLF注入，在添加header的方法中新增了validateValue方法对header value进行校验，不再允许存在换行等空白符。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> T <span class="title">add</span><span class="params">(K name, V value)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">this</span>.validateName(<span class="keyword">this</span>.nameValidator, <span class="keyword">true</span>, name);</span><br><span class="line">    <span class="keyword">this</span>.validateValue(<span class="keyword">this</span>.valueValidator, name, value);</span><br><span class="line">    ObjectUtil.checkNotNull(value, <span class="string">&quot;value&quot;</span>);</span><br><span class="line">    <span class="keyword">int</span> h = <span class="keyword">this</span>.hashingStrategy.hashCode(name);</span><br><span class="line">    <span class="keyword">int</span> i = <span class="keyword">this</span>.index(h);</span><br><span class="line">    <span class="keyword">this</span>.add0(h, i, name, value);</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">this</span>.thisT();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在攻击redis时，除了通过slaveof等方式rce（需要出网，以及版本不能太高），还可以尝试通过set token来利用。目前很多系统的鉴权都通过判断redis中是否含有对应的token实现，通过set token可以通过鉴权进入到目标系统中RCE或者配合fastjson等其他反序列化利用。</p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121262421286.jpg"></p>
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/2024/04/03/17121262472127.jpg"></p>
+<p>spring gateway处理<code>&#123;&#123;&#125;&#125;</code>此类数据时，会尝试解析，所以需要通过append实现。</p>
+<p>当然除了攻击redis这种方式，也可以通过新增内网地址gateway尝试攻击内网http应用漏洞，但是由于不知道内网情况难度比较大。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2024 雨了个雨
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

